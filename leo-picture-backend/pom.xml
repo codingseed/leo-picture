@@ -90,12 +90,12 @@
 <!--            <artifactId>jsoup</artifactId>-->
 <!--            <version>1.15.3</version>-->
 <!--        </dependency>-->
-<!--        &lt;!&ndash; 对象存储 &ndash;&gt;-->
-<!--        <dependency>-->
-<!--            <groupId>com.qcloud</groupId>-->
-<!--            <artifactId>cos_api</artifactId>-->
-<!--            <version>5.6.227</version>-->
-<!--        </dependency>-->
+        <!-- 对象存储 -->
+        <dependency>
+            <groupId>com.qcloud</groupId>
+            <artifactId>cos_api</artifactId>
+            <version>5.6.227</version>
+        </dependency>
         <!-- 工具库：https://doc.hutool.cn/pages/index/ -->
         <dependency>
             <groupId>cn.hutool</groupId>
