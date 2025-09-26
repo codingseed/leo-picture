@@ -9,6 +9,7 @@ import org.springframework.web.multipart.MultipartFile;
 import java.io.File;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Objects;
 
 /**
  * @author bxl
@@ -19,7 +20,7 @@ import java.util.List;
 public class FilePictureUpload extends PictureUploadTemplate {
 
     @Override
-    protected void validPicture(Object inputSource) {
+    protected String validPicture(Object inputSource) {
         MultipartFile multipartFile = (MultipartFile) inputSource;
         ThrowUtils.throwIf(multipartFile == null, ErrorCode.PARAMS_ERROR, "文件不能为空");
         // 1. 校验文件大小
@@ -27,10 +28,28 @@ public class FilePictureUpload extends PictureUploadTemplate {
         final long ONE_M = 1024 * 1024L;
         ThrowUtils.throwIf(fileSize > 2 * ONE_M, ErrorCode.PARAMS_ERROR, "文件大小不能超过 2M");
         // 2. 校验文件后缀
-        String fileSuffix = FileUtil.getSuffix(multipartFile.getOriginalFilename());
+//        String fileSuffix = FileUtil.getSuffix(multipartFile.getOriginalFilename());
+        String fileSuffix = getSuffixFromContentType(Objects.requireNonNull(multipartFile.getContentType()));
         // 允许上传的文件后缀
         final List<String> ALLOW_FORMAT_LIST = Arrays.asList("jpeg", "jpg", "png", "webp");
         ThrowUtils.throwIf(!ALLOW_FORMAT_LIST.contains(fileSuffix), ErrorCode.PARAMS_ERROR, "文件类型错误");
+        return fileSuffix;
+    }
+
+    private String getSuffixFromContentType(String contentType) {
+
+        switch(contentType) {
+            case "image/jpeg":
+                return "jpeg";
+            case "image/png":
+                return "png";
+            case "image/webp":
+                return "webp";
+            case "image/jpg":
+                return "jpg";
+            default:
+                return "";
+        }
     }
 
     @Override

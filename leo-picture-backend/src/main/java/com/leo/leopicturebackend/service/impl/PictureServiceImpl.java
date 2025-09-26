@@ -4,6 +4,8 @@ import cn.hutool.core.bean.BeanUtil;
 import cn.hutool.core.collection.CollUtil;
 import cn.hutool.core.util.ObjUtil;
 import cn.hutool.core.util.StrUtil;
+import cn.hutool.json.JSONObject;
+import cn.hutool.json.JSONUtil;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
@@ -38,10 +40,7 @@ import org.springframework.web.multipart.MultipartFile;
 import javax.annotation.Resource;
 import javax.servlet.http.HttpServletRequest;
 import java.io.IOException;
-import java.util.Date;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 import java.util.stream.Collectors;
 
 /**
@@ -293,6 +292,13 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
         }
     }
 
+    /**
+     * 批量抓取和创建图片
+     *
+     * @param pictureUploadByBatchRequest 批量抓取图片请求
+     * @param loginUser                   登录用户
+     * @return 成功创建的图片数
+     */
     @Override
     public Integer uploadPictureByBatch(PictureUploadByBatchRequest pictureUploadByBatchRequest, User loginUser) {
         // 校验参数
@@ -318,11 +324,37 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
         if (ObjUtil.isEmpty(div)) {
             throw new BusinessException(ErrorCode.OPERATION_ERROR, "获取元素失败");
         }
-        Elements imgElementList = div.select("img.mimg");
+
+        // 获取class['dgcontrol’]元素下的所有img[class='mimg’]元素
+        // 这里获得的是已经处理过的图片而非原图
+        // Elements imgElementList = div.select("img.mimg");
+
+        // 原图存放在a[class="iusc"]标签下的m属性中的murl中
+        Elements imgElementList = div.select("a.iusc");
         // 遍历元素，依次处理上传图片
         int uploadCount = 0;
-        for (Element imgElement : imgElementList) {
-            String fileUrl = imgElement.attr("src");
+
+        for(Element imgElement:imgElementList){
+            // String fileUrl = imgElement.attr("src");
+//            // 获取m属性
+//            String m_attr = imgElement.attr("m");
+//            // 将m属性字符串转为map对象
+//            HashMap<String,String> mMap = JSONUtil.toBean(m_attr, HashMap.class);
+//            String fileUrl = mMap.get("murl");
+
+            // 获取data-m属性中的JSON字符串
+            String dataM = imgElement.attr("m");
+            String fileUrl;
+            try {
+                // 解析JSON字符串
+                JSONObject jsonObject = JSONUtil.parseObj(dataM);
+                // 获取murl字段（原始图片URL）
+                fileUrl = jsonObject.getStr("murl");
+            } catch (Exception e) {
+                log.error("解析图片数据失败", e);
+                continue;
+            }
+
             if (StrUtil.isBlank(fileUrl)) {
                 log.info("当前链接为空，已跳过：{}", fileUrl);
                 continue;

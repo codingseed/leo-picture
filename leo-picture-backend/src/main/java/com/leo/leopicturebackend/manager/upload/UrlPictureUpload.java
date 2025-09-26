@@ -25,7 +25,7 @@ import java.util.List;
 public class UrlPictureUpload extends PictureUploadTemplate {
 
     @Override
-    protected void validPicture(Object inputSource) {
+    protected String validPicture(Object inputSource) {
         String fileUrl = (String) inputSource;
         // 1. 校验非空
         ThrowUtils.throwIf(StrUtil.isBlank(fileUrl), ErrorCode.PARAMS_ERROR, "文件地址为空");
@@ -47,7 +47,7 @@ public class UrlPictureUpload extends PictureUploadTemplate {
                     .execute();
             // 未正常返回，无需执行其他判断
             if (httpResponse.getStatus() != HttpStatus.HTTP_OK) {
-                return;
+                return "";
             }
             // 5. 文件存在，文件类型校验
             String contentType = httpResponse.header("Content-Type");
@@ -75,12 +75,28 @@ public class UrlPictureUpload extends PictureUploadTemplate {
                 httpResponse.close();
             }
         }
+        return getSuffixFromContentType(httpResponse.header("Content-Type").toLowerCase());
     }
 
+    private String getSuffixFromContentType(String contentType) {
+
+        switch(contentType) {
+            case "image/jpeg":
+                return "jpeg";
+            case "image/png":
+                return "png";
+            case "image/webp":
+                return "webp";
+            case "image/jpg":
+                return "jpg";
+            default:
+                return "";
+        }
+    }
     @Override
     protected String getOriginFilename(Object inputSource) {
         String fileUrl = (String) inputSource;
-        return FileUtil.mainName(fileUrl);
+        return FileUtil.getName(fileUrl);
     }
 
     @Override
