@@ -17,9 +17,8 @@ create table if not exists user
     vipExpireTime datetime     null comment '会员过期时间',
     vipCode       varchar(128) null comment '会员兑换码',
     vipNumber     bigint       null comment '会员编号',
-    shareCode     varchar(20)  DEFAULT NULL COMMENT '分享码',
-    inviteUser    bigint       DEFAULT NULL COMMENT '邀请用户 id',
-
+#     shareCode     varchar(20)  DEFAULT NULL COMMENT '分享码',
+#     inviteUser    bigint       DEFAULT NULL COMMENT '邀请用户 id',
     editTime     datetime     default CURRENT_TIMESTAMP not null comment '编辑时间',
     createTime   datetime     default CURRENT_TIMESTAMP not null comment '创建时间',
     updateTime   datetime     default CURRENT_TIMESTAMP not null on update CURRENT_TIMESTAMP comment '更新时间',
