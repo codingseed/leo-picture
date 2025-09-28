@@ -7,6 +7,7 @@ import com.leo.leopicturebackend.model.dto.picture.*;
 import com.leo.leopicturebackend.model.entity.Picture;
 import com.leo.leopicturebackend.model.entity.User;
 import com.leo.leopicturebackend.model.vo.PictureVO;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.web.multipart.MultipartFile;
 import javax.servlet.http.HttpServletRequest;
 
@@ -74,4 +75,7 @@ public interface PictureService extends IService<Picture> {
     void fillReviewParams(Picture picture, User loginUser);
 
     Integer uploadPictureByBatch(PictureUploadByBatchRequest pictureUploadByBatchRequest, User loginUser);
+
+    @Async
+    void clearPictureFile(Picture oldPicture);
 }

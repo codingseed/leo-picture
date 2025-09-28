@@ -9,6 +9,8 @@ server:
 spring:
   application:
     name: leo-picture-backend
+  profiles:
+    active: local
   # 数据库配置
   datasource:
     driver-class-name: com.mysql.cj.jdbc.Driver

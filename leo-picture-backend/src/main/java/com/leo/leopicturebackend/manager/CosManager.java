@@ -71,7 +71,7 @@ public class CosManager {
         // 2. 缩略图处理，仅对 > 20 KB 的图片生成缩略图
         if (file.length() > 2 * 1024) {
             PicOperations.Rule thumbnailRule = new PicOperations.Rule();
-            // 拼接缩略图的路径
+            // 拼接缩略图的路径 todo 后缀丢失处理
             String thumbnailKey = FileUtil.mainName(key) + "_thumbnail." + FileUtil.getSuffix(key);
             thumbnailRule.setFileId(thumbnailKey);
             thumbnailRule.setBucket(cosClientConfig.getBucket());
