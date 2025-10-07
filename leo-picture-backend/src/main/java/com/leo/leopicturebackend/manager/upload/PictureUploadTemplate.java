@@ -53,6 +53,10 @@ public abstract class PictureUploadTemplate {
             uploadFilename = String.format("%s_%s.%s", DateUtil.formatDate(new Date()), uuid,
                 FileUtil.getSuffix(originalFilename));
         }
+        //aliyunai扩图上传，会增加?后面的后缀，导致无法上传
+        if(uploadFilename.contains("?")) {
+            uploadFilename = uploadFilename.split("\\?")[0];
+        }
         String uploadPath = String.format("/%s/%s", uploadPathPrefix, uploadFilename);
 
         File file = null;

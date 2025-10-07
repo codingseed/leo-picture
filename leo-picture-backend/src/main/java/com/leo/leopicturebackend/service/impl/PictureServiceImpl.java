@@ -9,6 +9,9 @@ import cn.hutool.json.JSONUtil;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
+import com.leo.leopicturebackend.api.aliyunai.AliYunAiApi;
+import com.leo.leopicturebackend.api.aliyunai.model.CreateOutPaintingTaskRequest;
+import com.leo.leopicturebackend.api.aliyunai.model.CreateOutPaintingTaskResponse;
 import com.leo.leopicturebackend.exception.BusinessException;
 import com.leo.leopicturebackend.exception.ErrorCode;
 import com.leo.leopicturebackend.exception.ThrowUtils;
@@ -85,6 +88,16 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
 
 //    @Resource
 //    private ThreadPoolExecutor customExecutor;
+
+    @Resource
+    private AliYunAiApi aliYunAiApi;
+
+    // 最大图像大小：10MB（字节）
+    private static final long MAX_SIZE = 10 * 1024 * 1024;
+    // 图像维度（宽/高）的最小、最大值（像素）
+    private static final int MIN_DIMENSION = 512;
+    private static final int MAX_DIMENSION = 4096;
+
 
     @Override
     public void validPicture(Picture picture) {
@@ -425,7 +438,7 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
         // 遍历元素，依次处理上传图片
         int uploadCount = 0;
 
-        for(Element imgElement:imgElementList){
+        for (Element imgElement : imgElementList) {
             // String fileUrl = imgElement.attr("src");
 //            // 获取m属性
 //            String m_attr = imgElement.attr("m");
@@ -510,12 +523,14 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
             boolean result = this.removeById(pictureId);
             ThrowUtils.throwIf(!result, ErrorCode.OPERATION_ERROR);
             // 更新空间的使用额度，释放额度
-            boolean update = spaceService.lambdaUpdate()
-                    .eq(Space::getId, oldPicture.getSpaceId())
-                    .setSql("totalSize = totalSize - " + oldPicture.getPicSize())
-                    .setSql("totalCount = totalCount - 1")
-                    .update();
-            ThrowUtils.throwIf(!update, ErrorCode.OPERATION_ERROR, "额度更新失败");
+            if (oldPicture.getSpaceId() != null) {
+                boolean update = spaceService.lambdaUpdate()
+                        .eq(Space::getId, oldPicture.getSpaceId())
+                        .setSql("totalSize = totalSize - " + oldPicture.getPicSize())
+                        .setSql("totalCount = totalCount - 1")
+                        .update();
+                ThrowUtils.throwIf(!update, ErrorCode.OPERATION_ERROR, "额度更新失败");
+            }
             return true;
         });
         // 异步清理文件
@@ -680,6 +695,46 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
 //        CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).join();
     }
 
+    @Override
+    public CreateOutPaintingTaskResponse createPictureOutPaintingTask(CreatePictureOutPaintingTaskRequest createPictureOutPaintingTaskRequest, User loginUser) {
+        // 获取图片信息
+        Long pictureId = createPictureOutPaintingTaskRequest.getPictureId();
+        Picture picture = Optional.ofNullable(this.getById(pictureId))
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND_ERROR, "图片不存在"));
+        // 校验权限
+        checkPictureAuth(loginUser, picture);
+        // 校验待扩图片是否符合限制条件
+        checkPictureOutPainting(picture);
+        // 创建扩图任务
+        CreateOutPaintingTaskRequest createOutPaintingTaskRequest = new CreateOutPaintingTaskRequest();
+        CreateOutPaintingTaskRequest.Input input = new CreateOutPaintingTaskRequest.Input();
+        input.setImageUrl(picture.getUrl());
+        createOutPaintingTaskRequest.setInput(input);
+        createOutPaintingTaskRequest.setParameters(createPictureOutPaintingTaskRequest.getParameters());
+        // 创建任务
+        return aliYunAiApi.createOutPaintingTask(createOutPaintingTaskRequest);
+    }
+
+    private void checkPictureOutPainting(Picture picture) {
+        // 校验图像大小
+        if (picture.getPicSize() > MAX_SIZE) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, String.format("图像大小超过10MB限制，当前大小：%.2fMB",
+                    picture.getPicSize() / (1024.0 * 1024)));
+        }
+        // 校验图像分辨率与单边长度
+        int width = picture.getPicWidth();
+        int height = picture.getPicHeight();
+
+        if (width < MIN_DIMENSION || height < MIN_DIMENSION) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, String.format("图像分辨率过低，宽/高小于512像素，当前宽：%d，高：%d",
+                    width, height));
+        }
+        if (width > MAX_DIMENSION || height > MAX_DIMENSION) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, String.format("图像分辨率过高，宽/高大于4096像素，当前宽：%d，高：%d",
+                    width, height));
+        }
+    }
+
     /**
      * nameRule 格式：图片-{序号}
      *
@@ -701,8 +756,7 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
             throw new BusinessException(ErrorCode.OPERATION_ERROR, "名称解析错误");
         }
     }
+
 }
-
-
 
 
