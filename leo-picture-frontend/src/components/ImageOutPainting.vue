@@ -101,7 +101,7 @@ const startPolling = () => {
           // 清理轮询
           clearPolling()
         } else if (taskResult.taskStatus === 'FAILED') {
-          message.error('扩图任务执行失败' + taskResult.message)
+          message.error('扩图任务执行失败,' + taskResult.message)
           // 清理轮询
           clearPolling()
         }

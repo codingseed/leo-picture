@@ -66,4 +66,6 @@ public interface SpaceService extends IService<Space> {
      * @param space
      */
     void fillSpaceBySpaceLevel(Space space);
+
+    void checkSpaceAuth(User loginUser, Space space);
 }

@@ -12,7 +12,7 @@ import AddSpacePage from '@/pages/AddSpacePage.vue'
 import MySpacePage from '@/pages/MySpacePage.vue'
 import SpaceDetailPage from '@/pages/SpaceDetailPage.vue'
 import SearchPicturePage from '@/pages/SearchPicturePage.vue'
-// import SpaceAnalyzePage from '@/pages/SpaceAnalyzePage.vue'
+import SpaceAnalyzePage from '@/pages/SpaceAnalyzePage.vue'
 // import SpaceUserManagePage from '@/pages/admin/SpaceUserManagePage.vue'
 // import UserExchangeVipPage from '@/pages/UserExchangeVipPage.vue'
 
@@ -87,11 +87,11 @@ const router = createRouter({
       component: SpaceDetailPage,
       props: true,
     },
-    // {
-    //   path: '/space_analyze',
-    //   name: '空间分析',
-    //   component: SpaceAnalyzePage,
-    // },
+    {
+      path: '/space_analyze',
+      name: '空间分析',
+      component: SpaceAnalyzePage,
+    },
     {
       path: '/search_picture',
       name: '图片搜索',
