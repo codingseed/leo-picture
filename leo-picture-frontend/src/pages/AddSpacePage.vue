@@ -113,7 +113,7 @@ const handleSubmit = async (values: any) => {
     message.success('操作成功')
     // 跳转到空间详情页
     router.push({
-      path: `/space/${res.data.data}`,
+      path: `/space/${spaceId}`,
     })
   } else {
     message.error('操作失败，' + res.data.message)
