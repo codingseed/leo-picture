@@ -2,9 +2,9 @@
 <!DOCTYPE mapper
         PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
-<mapper namespace="com.leo.leopicturebackend.mapper.SpaceMapper">
+<mapper namespace="com.leo.leopicture.infrastructure.mapper.SpaceMapper">
 
-    <resultMap id="BaseResultMap" type="com.leo.leopicturebackend.model.entity.Space">
+    <resultMap id="BaseResultMap" type="com.leo.leopicture.domain.space.entity.Space">
         <id property="id" column="id" jdbcType="BIGINT"/>
         <result property="spaceName" column="spaceName" jdbcType="VARCHAR"/>
         <result property="spaceLevel" column="spaceLevel" jdbcType="INTEGER"/>

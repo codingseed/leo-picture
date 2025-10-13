@@ -160,7 +160,7 @@
                 <artifactId>spring-boot-maven-plugin</artifactId>
                 <version>${spring-boot.version}</version>
                 <configuration>
-                    <mainClass>com.leo.leopicturebackend.LeoPictureBackendApplication</mainClass>
+                    <mainClass>com.leo.leopicture.LeoPictureBackendApplication</mainClass>
                     <skip>true</skip>
                 </configuration>
                 <executions>

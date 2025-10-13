@@ -2,9 +2,9 @@
 <!DOCTYPE mapper
         PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
-<mapper namespace="com.leo.leopicturebackend.mapper.PictureMapper">
+<mapper namespace="com.leo.leopicture.infrastructure.mapper.PictureMapper">
 
-    <resultMap id="BaseResultMap" type="com.leo.leopicturebackend.model.entity.Picture">
+    <resultMap id="BaseResultMap" type="com.leo.leopicture.domain.picture.entity.Picture">
             <id property="id" column="id" jdbcType="BIGINT"/>
             <result property="url" column="url" jdbcType="VARCHAR"/>
             <result property="thumbnailUrl" column="thumbnailUrl" jdbcType="VARCHAR"/>

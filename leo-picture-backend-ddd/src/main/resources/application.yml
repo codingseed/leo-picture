@@ -55,4 +55,4 @@ knife4j:
       default:
         api-rule: package
         api-rule-resources:
-          - com.leo.leopicturebackend.controller
+          - com.leo.leopicture.interfaces.controller
