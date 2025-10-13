@@ -161,7 +161,7 @@
                 <version>${spring-boot.version}</version>
                 <configuration>
                     <mainClass>com.leo.leopicturebackend.LeoPictureBackendApplication</mainClass>
-                    <skip>true</skip>
+<!--                    <skip>true</skip>-->
                 </configuration>
                 <executions>
                     <execution>
