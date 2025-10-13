@@ -5,7 +5,7 @@
         <RouterLink to="/">
           <div class="title-bar">
             <img class="logo" src="../assets/logo.png" alt="logo" />
-            <div class="title">Leo云图库</div>
+            <div class="title">Leo云端素材库</div>
           </div>
         </RouterLink>
       </a-col>
