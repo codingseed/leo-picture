@@ -250,6 +250,8 @@ declare namespace API {
     createTime?: string
     editTime?: string
     id?: number
+    tokenName?: string
+    tokenValue?: string
     updateTime?: string
     userAccount?: string
     userAvatar?: string
@@ -730,5 +732,9 @@ declare namespace API {
     vipCode?: string
     vipExpireTime?: string
     vipNumber?: number
+  }
+
+  type VipExchangeRequest = {
+    vipCode?: string
   }
 }

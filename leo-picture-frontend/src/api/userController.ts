@@ -29,6 +29,21 @@ export async function deleteUserUsingPost(
   })
 }
 
+/** exchangeVip POST /api/user/exchange/vip */
+export async function exchangeVipUsingPost(
+  body: API.VipExchangeRequest,
+  options?: { [key: string]: any }
+) {
+  return request<API.BaseResponseBoolean_>('/api/user/exchange/vip', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    data: body,
+    ...(options || {}),
+  })
+}
+
 /** getUserById GET /api/user/get */
 export async function getUserByIdUsingGet(
   // 叠加生成的Param类型 (非body参数swagger默认没有生成对象)

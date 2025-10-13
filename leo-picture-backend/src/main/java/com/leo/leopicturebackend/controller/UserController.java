@@ -170,4 +170,18 @@ public class UserController {
         return ResultUtils.success(userVOPage);
     }
 
+    /**
+     * 兑换会员
+     */
+    @PostMapping("/exchange/vip")
+    public BaseResponse<Boolean> exchangeVip(@RequestBody VipExchangeRequest vipExchangeRequest,
+                                             HttpServletRequest httpServletRequest) {
+        ThrowUtils.throwIf(vipExchangeRequest == null, ErrorCode.PARAMS_ERROR);
+        String vipCode = vipExchangeRequest.getVipCode();
+        User loginUser = userService.getLoginUser(httpServletRequest);
+        // 调用 service 层的方法进行会员兑换
+        boolean result = userService.exchangeVip(loginUser, vipCode);
+        return ResultUtils.success(result);
+    }
+
 }
