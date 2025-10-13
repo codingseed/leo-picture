@@ -50,17 +50,17 @@
             <artifactId>caffeine</artifactId>
             <version>3.1.8</version>
         </dependency>
-<!--        &lt;!&ndash; websocket &ndash;&gt;-->
-<!--        <dependency>-->
-<!--            <groupId>org.springframework.boot</groupId>-->
-<!--            <artifactId>spring-boot-starter-websocket</artifactId>-->
-<!--        </dependency>-->
-<!--        &lt;!&ndash; 高性能无锁队列 &ndash;&gt;-->
-<!--        <dependency>-->
-<!--            <groupId>com.lmax</groupId>-->
-<!--            <artifactId>disruptor</artifactId>-->
-<!--            <version>3.4.2</version>-->
-<!--        </dependency>-->
+        <!-- websocket -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-websocket</artifactId>
+        </dependency>
+        <!-- 高性能无锁队列 -->
+        <dependency>
+            <groupId>com.lmax</groupId>
+            <artifactId>disruptor</artifactId>
+            <version>3.4.2</version>
+        </dependency>
         <!-- Sa-Token 权限认证 -->
         <dependency>
             <groupId>cn.dev33</groupId>

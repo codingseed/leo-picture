@@ -1,5 +1,6 @@
 package com.leo.leopicturebackend.controller;
 
+import cn.dev33.satoken.stp.SaTokenInfo;
 import cn.hutool.core.bean.BeanUtil;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.leo.leopicturebackend.annotation.AuthCheck;
@@ -10,6 +11,7 @@ import com.leo.leopicturebackend.constant.UserConstant;
 import com.leo.leopicturebackend.exception.BusinessException;
 import com.leo.leopicturebackend.exception.ErrorCode;
 import com.leo.leopicturebackend.exception.ThrowUtils;
+import com.leo.leopicturebackend.manager.auth.StpKit;
 import com.leo.leopicturebackend.model.dto.user.*;
 import com.leo.leopicturebackend.model.entity.User;
 import com.leo.leopicturebackend.model.vo.LoginUserVO;
@@ -51,6 +53,11 @@ public class UserController {
         String userAccount = userLoginRequest.getUserAccount();
         String userPassword = userLoginRequest.getUserPassword();
         LoginUserVO loginUserVO = userService.userLogin(userAccount, userPassword, request);
+        //返回用户信息及token,解决后端重启后调用团队空间接口报错 cn.dev33.satoken.exception.SaTokenException: 未能获取对应StpLogic，type=space
+        SaTokenInfo tokenInfo = StpKit.SPACE.getTokenInfo();
+        loginUserVO.setTokenName(tokenInfo.getTokenName());
+        loginUserVO.setTokenValue(tokenInfo.getTokenValue());
+
         return ResultUtils.success(loginUserVO);
     }
 

@@ -8,9 +8,32 @@ const myAxios = axios.create({
   withCredentials: true,
 })
 
+// 定义登录用户信息的接口
+interface LoginUser {
+  tokenName?: string
+  tokenValue?: string
+  // 可以添加其他用户相关字段，如用户名、权限等
+}
+
 // 全局请求拦截器
 myAxios.interceptors.request.use(
   function (config) {
+    // 从localStorage获取登录用户信息
+    const loginUserJson = localStorage.getItem('loginUser')
+    let loginUser: LoginUser = {} // 明确指定类型
+
+    // 解析存储的用户信息（防止解析失败）
+    if (loginUserJson) {
+      try {
+        loginUser = JSON.parse(loginUserJson) as LoginUser
+      } catch (e) {
+        console.error('解析登录用户信息失败', e)
+      }
+    }
+    // 请求头添加token
+    if (loginUser.tokenName && loginUser.tokenValue) {
+      config.headers[`${loginUser.tokenName}`] = loginUser.tokenValue
+    }
     // Do something before request is sent
     return config
   },
