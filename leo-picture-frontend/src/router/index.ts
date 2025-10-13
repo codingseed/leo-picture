@@ -14,7 +14,7 @@ import SpaceDetailPage from '@/pages/SpaceDetailPage.vue'
 import SearchPicturePage from '@/pages/SearchPicturePage.vue'
 import SpaceAnalyzePage from '@/pages/SpaceAnalyzePage.vue'
 import SpaceUserManagePage from '@/pages/admin/SpaceUserManagePage.vue'
-// import UserExchangeVipPage from '@/pages/UserExchangeVipPage.vue'
+import UserExchangeVipPage from '@/pages/UserExchangeVipPage.vue'
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -97,11 +97,11 @@ const router = createRouter({
       name: '图片搜索',
       component: SearchPicturePage,
     },
-    // {
-    //   path: '/user_exchange_vip',
-    //   name: '用户兑换会员',
-    //   component: UserExchangeVipPage,
-    // },
+    {
+      path: '/user_exchange_vip',
+      name: '用户兑换会员',
+      component: UserExchangeVipPage,
+    },
     {
       path: '/about',
       name: 'about',
