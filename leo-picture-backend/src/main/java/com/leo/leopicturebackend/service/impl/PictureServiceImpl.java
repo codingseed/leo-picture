@@ -47,6 +47,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionTemplate;
 
+import javax.annotation.PreDestroy;
 import javax.annotation.Resource;
 import javax.servlet.http.HttpServletRequest;
 import java.awt.*;
@@ -891,16 +892,39 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
     /**
      * 清理分页查询缓存 - Cache-Aside模式的核心
      */
+    private final ScheduledExecutorService scheduledExecutorService = Executors.newScheduledThreadPool(1);
     public void clearPageCache() {
-        // 删除所有分页查询相关的缓存
+        // 第一次删除所有分页查询相关的缓存
         try {
             // 清理Redis缓存
             Set<String> keys = stringRedisTemplate.keys("leopicture:listPictureVOByPage:*");
             if (keys != null && !keys.isEmpty()) {
                 stringRedisTemplate.delete(keys);
             }
+            // 第二次延迟删除
+            scheduledExecutorService.schedule(() -> {
+                try {
+                    Set<String> delayedKeys = stringRedisTemplate.keys("fupicture:listPictureVOByPage:*");
+                    if (delayedKeys != null && !delayedKeys.isEmpty()) {
+                        // Redis删除操作，执行很快，一个线程即可
+                        stringRedisTemplate.delete(delayedKeys);
+                        log.debug("延迟删除缓存完成");
+                    }
+                } catch (Exception e) {
+                    log.error("延迟删除缓存失败", e);
+                }
+            }, 500, TimeUnit.MILLISECONDS);
+
         } catch (Exception e) {
             log.error("清理分页缓存失败", e);
+        }
+    }
+
+    // 在类中添加销毁方法
+    @PreDestroy
+    public void destroy() {
+        if (scheduledExecutorService != null && !scheduledExecutorService.isShutdown()) {
+            scheduledExecutorService.shutdown();
         }
     }
 

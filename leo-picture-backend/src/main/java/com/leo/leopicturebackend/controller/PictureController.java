@@ -264,6 +264,9 @@ public class PictureController {
 
     /**
      * 分页获取图片列表（封装类，有缓存）【结合旁路缓存解决数据一致性】
+     * 读取时：先查缓存，缓存未命中再查数据库，并将结果写入缓存。写入时：通过调用方法主动清除相关缓存，
+     * newScheduledThreadPool线程池5秒后再删一次
+     * 可结合互斥锁防止缓存击穿（多个并发请求同时查库）
      */
     @Deprecated
     @PostMapping("/list/page/vo/cache")
