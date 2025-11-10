@@ -27,7 +27,7 @@
     <a-card title="空间级别介绍">
       <a-typography-paragraph>
         * 目前仅支持开通普通版，如需升级空间，请联系
-        <a href="https://codefather.cn" target="_blank">程序员Leo</a>
+        <a href="https://github.com/codingseed" target="_blank">程序员Leo</a>
       </a-typography-paragraph>
       <a-typography-paragraph v-for="spaceLevel in spaceLevelList">
         {{ spaceLevel.text }}：大小 {{ formatSize(spaceLevel.maxSize) }}，数量
@@ -63,7 +63,7 @@ const route = useRoute()
 // 空间类别，默认为私有空间
 const spaceType = computed(() => {
   if (route.query?.type) {
-    return Number(route.query.type)
+    return SPACE_TYPE_ENUM.TEAM
   } else {
     return SPACE_TYPE_ENUM.PRIVATE
   }
@@ -113,7 +113,7 @@ const handleSubmit = async (values: any) => {
     message.success('操作成功')
     // 跳转到空间详情页
     router.push({
-      path: `/space/${spaceId}`,
+      path: `/space/${res.data.data}`,
     })
   } else {
     message.error('操作失败，' + res.data.message)

@@ -5,11 +5,13 @@ import cn.hutool.core.date.DateUtil;
 import cn.hutool.core.io.FileUtil;
 import cn.hutool.core.util.NumberUtil;
 import cn.hutool.core.util.RandomUtil;
+import cn.hutool.core.util.StrUtil;
 import com.leo.leopicturebackend.config.CosClientConfig;
 import com.leo.leopicturebackend.exception.BusinessException;
 import com.leo.leopicturebackend.exception.ErrorCode;
 import com.leo.leopicturebackend.manager.CosManager;
 import com.leo.leopicturebackend.model.dto.file.UploadPictureResult;
+import com.qcloud.cos.exception.CosClientException;
 import com.qcloud.cos.model.PutObjectResult;
 import com.qcloud.cos.model.ciModel.persistence.CIObject;
 import com.qcloud.cos.model.ciModel.persistence.ImageInfo;
@@ -43,7 +45,7 @@ public abstract class PictureUploadTemplate {
         // 1. 校验图片
         String fileSuffix = validPicture(inputSource);
 
-        // 2. 图片上传地址
+        // 2. 图片上传地址 文件名：时间戳_uuid.后缀
         String uuid = RandomUtil.randomString(16);
         String originalFilename = getOriginFilename(inputSource);
         String uploadFilename;
@@ -86,6 +88,12 @@ public abstract class PictureUploadTemplate {
             }
             // 封装返回结果
             return buildResult(originalFilename, file, uploadPath, imageInfo);
+        }  catch (CosClientException e) {
+            log.error("云存储客户端异常: {}", e.getMessage(), e);
+            throw new BusinessException(ErrorCode.OPERATION_ERROR, "云存储服务异常: " + e.getMessage());
+        } catch (BusinessException e) {
+            log.error("业务异常: {}", e.getMessage());
+            throw e;
         } catch (Exception e) {
             log.error("图片上传到对象存储失败", e);
             throw new BusinessException(ErrorCode.SYSTEM_ERROR, "上传失败");
@@ -95,6 +103,7 @@ public abstract class PictureUploadTemplate {
         }
     }
 
+    // 抽象方法，子类实现。将不同实现方式的相同方法抽象出来
     /**
      * 校验输入源（本地文件或 URL）
      */
@@ -121,6 +130,9 @@ public abstract class PictureUploadTemplate {
      */
     private UploadPictureResult buildResult(String originalFilename, CIObject compressedCiObject, CIObject thumbnailCiObject,
                                             ImageInfo imageInfo) {
+        if (compressedCiObject == null || thumbnailCiObject == null || imageInfo == null) {
+            throw new BusinessException(ErrorCode.SYSTEM_ERROR, "图片处理结果不完整");
+        }
         // 计算宽高
         int picWidth = compressedCiObject.getWidth();
         int picHeight = compressedCiObject.getHeight();
@@ -152,6 +164,9 @@ public abstract class PictureUploadTemplate {
      * @return
      */
     private UploadPictureResult buildResult(String originalFilename, File file, String uploadPath, ImageInfo imageInfo) {
+        if (imageInfo == null || file == null || StrUtil.isBlank(uploadPath)) {
+            throw new BusinessException(ErrorCode.SYSTEM_ERROR, "图片处理参数不完整");
+        }
         // 计算宽高
         int picWidth = imageInfo.getWidth();
         int picHeight = imageInfo.getHeight();
@@ -173,14 +188,22 @@ public abstract class PictureUploadTemplate {
     /**
      * 清理临时文件
      */
-    public void deleteTempFile(File file) {
-        if (file == null) {
+    public void deleteTempFile(File tempFile) {
+        if (tempFile == null) {
             return;
         }
-        // 删除临时文件
-        boolean deleteResult = file.delete();
-        if (!deleteResult) {
-            log.error("file delete error, filepath = {}", file.getAbsolutePath());
+        try {
+            if (tempFile.exists()) {
+                // 删除临时文件
+                boolean delete = tempFile.delete();
+                if (!delete) {
+                    log.warn("删除临时文件失败,filePath= {}", tempFile.getAbsolutePath());
+                } else {
+                    log.debug("成功删除临时文件: {}", tempFile.getAbsolutePath());
+                }
+            }
+        } catch (Exception e) {
+            log.warn("删除临时文件时发生异常: {}", e.getMessage());
         }
     }
 }

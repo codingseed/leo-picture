@@ -11,7 +11,7 @@
         </a-layout-content>
       </a-layout>
       <a-layout-footer class="footer">
-        <a href="https://www.codefather.cn" target="_blank"> Leo云端素材库 by 程序员Leo </a>
+        <a href="https://github.com/codingseed" target="_blank"> 云梦图坊 by 程序员Leo </a>
       </a-layout-footer>
     </a-layout>
   </div>

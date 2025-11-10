@@ -58,6 +58,8 @@ public class SpaceServiceImpl extends ServiceImpl<SpaceMapper, Space>
     private TransactionTemplate transactionTemplate;
 
     Map<Long, Object> lockMap = new ConcurrentHashMap<>();
+    @Resource
+    private RedissonClient redissonClient;
 
 //    // 为了方便部署，注释掉分表
 //    @Resource
@@ -97,7 +99,8 @@ public class SpaceServiceImpl extends ServiceImpl<SpaceMapper, Space>
             throw new BusinessException(ErrorCode.NO_AUTH_ERROR, "无权限创建指定级别的空间");
         }
         // 4. 控制同一用户只能创建一个私有空间，以及一个团队空间
-
+        // 对用户进行加锁
+        RLock lock1 = redissonClient.getLock(String.valueOf(userId));
 //        // 【intern()保证每个String都是不同的对象，即同一用户两次请求也是依次互斥进入临界区，而不会并发】
 //        String lock = String.valueOf(userId).intern();
         // 本地锁优化：对字符串常量池(intern)进行加锁，数据并不会及时释放。可采用 concurrentHashMap 来存储本地锁对象。

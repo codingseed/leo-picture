@@ -10,6 +10,7 @@ import com.leo.leopicturebackend.model.entity.User;
 import com.leo.leopicturebackend.model.vo.space.analyze.*;
 import com.leo.leopicturebackend.service.SpaceAnalyzeService;
 import com.leo.leopicturebackend.service.UserService;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -26,6 +27,7 @@ import java.util.List;
 @Slf4j
 @RestController
 @RequestMapping("/space/analyze")
+//@Tag(name = "空间分析模块")
 public class SpaceAnalyzeController {
 
     @Resource

@@ -17,6 +17,7 @@ import com.leo.leopicturebackend.model.entity.User;
 import com.leo.leopicturebackend.model.vo.SpaceUserVO;
 import com.leo.leopicturebackend.service.SpaceUserService;
 import com.leo.leopicturebackend.service.UserService;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.BeanUtils;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -34,6 +35,7 @@ import java.util.List;
 @RestController
 @RequestMapping("/spaceUser")
 @Slf4j
+//@Tag(name = "空间用户模块")
 public class SpaceUserController {
 
     @Resource

@@ -10,6 +10,7 @@ import com.leo.leopicturebackend.constant.UserConstant;
 import com.leo.leopicturebackend.exception.BusinessException;
 import com.leo.leopicturebackend.exception.ErrorCode;
 import com.leo.leopicturebackend.manager.CosManager;
+import io.swagger.annotations.Tag;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
@@ -22,6 +23,7 @@ import java.io.IOException;
 @Slf4j
 @RestController
 @RequestMapping("/file")
+@Tag(name = "文件测试模块", description = "仅测试使用")
 public class FileController {
 
     @Resource

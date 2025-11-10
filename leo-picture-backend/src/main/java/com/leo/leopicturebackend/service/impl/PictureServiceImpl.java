@@ -16,6 +16,7 @@ import com.leo.leopicturebackend.exception.BusinessException;
 import com.leo.leopicturebackend.exception.ErrorCode;
 import com.leo.leopicturebackend.exception.ThrowUtils;
 import com.leo.leopicturebackend.manager.CosManager;
+import com.leo.leopicturebackend.manager.RateLimiterManager;
 import com.leo.leopicturebackend.manager.upload.FilePictureUpload;
 import com.leo.leopicturebackend.manager.upload.PictureUploadTemplate;
 import com.leo.leopicturebackend.manager.upload.UrlPictureUpload;
@@ -40,6 +41,7 @@ import org.jsoup.nodes.Element;
 import org.jsoup.select.Elements;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -51,8 +53,7 @@ import java.awt.*;
 import java.io.IOException;
 import java.util.*;
 import java.util.List;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.*;
 import java.util.stream.Collectors;
 
 /**
@@ -91,6 +92,11 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
 
     @Resource
     private AliYunAiApi aliYunAiApi;
+    @Resource
+    private StringRedisTemplate stringRedisTemplate;
+    @Resource
+    private RateLimiterManager rateLimiterManager;
+
 
     // 最大图像大小：10MB（字节）
     private static final long MAX_SIZE = 10 * 1024 * 1024;
@@ -234,6 +240,8 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
             this.clearPictureFile(oldPicture);
 //            this.deletePicture(oldPicture.getId(), loginUser);
         }
+        // 上传完成后清理缓存
+        this.clearPageCache();
         return PictureVO.objToVo(picture);
     }
 
@@ -409,6 +417,137 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
      */
     @Override
     public Integer uploadPictureByBatch(PictureUploadByBatchRequest pictureUploadByBatchRequest, User loginUser) {
+        //校验参数
+        Integer count = pictureUploadByBatchRequest.getCount();
+        String searchText = pictureUploadByBatchRequest.getSearchText();
+        //默认名称前缀
+        String namePrefix = pictureUploadByBatchRequest.getNamePrefix();
+        if (StrUtil.isBlank(namePrefix)) {
+            namePrefix = searchText;
+        }
+        ThrowUtils.throwIf(count > 30, ErrorCode.PARAMS_ERROR, "最多30条");
+        //抓取内容,%s占位searchText
+        String fetchUrl = String.format("https://cn.bing.com/images/async?q=%s&mmasync=1", searchText);
+        // 使用 Jsoup 抓取网页并解析为 Document 对象
+        Document document;
+        try {
+            document = Jsoup.connect(fetchUrl)
+                    .userAgent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36")
+                    .referrer("https://cn.bing.com")
+                    .get();
+        } catch (IOException e) {
+            log.error("图片抓取失败", e);
+            throw new BusinessException(ErrorCode.OPERATION_ERROR, "图片抓取失败");
+        }
+
+        //解析内容，从整个文档中找到具有 dgControl 类的第一个元素
+        Element div = document.getElementsByClass("dgControl").first();
+        if (ObjUtil.isEmpty(div)) {
+            throw new BusinessException(ErrorCode.OPERATION_ERROR, "图片解析获取元素失败");
+        }
+        // 从该 div 元素中选择所有具有 iusc 类的子元素
+        Elements imgElementList = div.select(".iusc");
+
+        // 使用 CompletableFuture 并发处理图片上传
+        List<CompletableFuture<Boolean>> uploadFutures = new ArrayList<>();
+
+        // 创建一个线程池用于执行异步任务
+        ThreadPoolExecutor executorService = new ThreadPoolExecutor//我的7945HX16核心的CPU，腾讯云SDK建议≤10
+                (10, 12, 5,
+                        TimeUnit.SECONDS, new LinkedBlockingQueue<>(20), new ThreadFactory() {
+                    @Override
+                    public Thread newThread(Runnable r) {
+                        Thread thread = new Thread(r,"upload-thread-");
+                        thread.setDaemon(false);
+                        return thread;
+                    }
+                }, new ThreadPoolExecutor.CallerRunsPolicy());
+//        ExecutorService executorService = Executors.newFixedThreadPool(10);//固定长线程池
+        //取一个最大值，count默认10
+        int maxUploads = Math.min(count, imgElementList.size());
+
+        // 添加简单监控，单例定时线程池，独立于主线程运行
+        ScheduledExecutorService monitorExecutor = Executors.newSingleThreadScheduledExecutor();
+        //固定频率执行定时任务。(Runnable command(要执行的任务（Runnable), long initialDelay(首次执行的延迟时间), long period连续执行之间的时间间隔（周期), TimeUnit unit)
+        monitorExecutor.scheduleAtFixedRate(
+                () -> {
+                    int queueSize = executorService.getQueue().size();
+                    if (queueSize > 20) {
+                        log.warn("图片上传队列堆积 | 队列大小: {}", queueSize);
+                    }
+                },
+                5, 5, TimeUnit.SECONDS);
+
+
+        for (int i = 0; i < maxUploads; i++) {
+            Element element = imgElementList.get(i);
+            // 获取data-m属性中的JSON字符串
+            String dataM = element.attr("m");
+            String fileUrl;
+            try {
+                JSONObject jsonObject = JSONUtil.parseObj(dataM);
+                fileUrl = jsonObject.getStr("murl");
+            } catch (Exception e) {
+                log.error("图片解析失败：{}", e.getMessage());
+                continue;
+            }
+            if (StrUtil.isBlank(fileUrl)) {
+                log.info("图片地址连接为空，已跳过：{}", fileUrl);
+                continue;
+            }
+            //处理图片地址，防止转义或者和对象存储冲突
+            int questionMarkIndex = fileUrl.indexOf("?");
+            if (questionMarkIndex > -1) {
+                fileUrl = fileUrl.substring(0, questionMarkIndex);
+            }
+
+            //准备上传参数
+            final String finalFileUrl = fileUrl;
+            final int index = i;
+            String finalNamePrefix = namePrefix;
+            // 使用 CompletableFuture 异步处理图片上传
+            CompletableFuture<Boolean> uploadFuture = CompletableFuture.supplyAsync(() -> {
+                PictureUploadRequest pictureUploadRequest = new PictureUploadRequest();
+                pictureUploadRequest.setFileUrl(finalFileUrl);
+                pictureUploadRequest.setPicName(finalNamePrefix + (index + 1));
+                try {
+                    PictureVO pictureVO = this.uploadPicture(finalFileUrl, pictureUploadRequest, loginUser);
+                    log.info("图片上传成功：id= {}, url={}", pictureVO.getId(),finalFileUrl);
+                    return true;
+                } catch (Exception e) {
+                    log.error("图片上传失败：{},url={}", e.getMessage(),finalFileUrl);
+                    return false;
+                }
+            }, executorService).exceptionally(throwable -> {
+                log.error("图片上传失败：{},url={}", throwable.getMessage(),finalFileUrl);
+                return false;
+            });
+            uploadFutures.add(uploadFuture);
+        }
+        if (executorService.getQueue().size() > 1) { // 阈值=1
+            log.error("图片上传队列堆积！");
+        }
+        // 等待所有上传任务完成并统计成功数量
+        int uploadCount = 0;
+        try {
+            List<Boolean> results = CompletableFuture.allOf(uploadFutures.toArray(new CompletableFuture[0]))//allof静态方法。等待所用任务执行完后获取结果
+                    //当前CompletableFuture完成后，使用其结果作为输入，执行一个函数，并返回一个新的 CompletableFuture，这个新的 CompletableFuture 的结果是函数的返回值。
+                    .thenApply(v -> uploadFutures.stream()
+                            .map(CompletableFuture::join)
+                            .collect(Collectors.toList()))
+                    .get(60, TimeUnit.SECONDS); // 等待所有任务完成,设置60秒超时
+            uploadCount = (int) results.stream().filter(Boolean::booleanValue).count();
+        } catch (Exception e) {
+            log.error("批量上传过程中发生异常", e);
+        } finally {
+            // 关闭线程池
+            executorService.shutdown();
+        }
+        return uploadCount;
+    }
+
+/*    @Override
+    public Integer uploadPictureByBatch(PictureUploadByBatchRequest pictureUploadByBatchRequest, User loginUser) {
         // 校验参数
         String searchText = pictureUploadByBatchRequest.getSearchText();
         Integer count = pictureUploadByBatchRequest.getCount();
@@ -435,7 +574,7 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
 
         // 获取class['dgcontrol’]元素下的所有img[class='mimg’]元素
         // 这里获得的是已经处理过的图片而非原图
-        // Elements imgElementList = div.select("img.mimg");
+//         Elements imgElementList = div.select("img.mimg");
 
         // 原图存放在a[class="iusc"]标签下的m属性中的murl中
         Elements imgElementList = div.select("a.iusc");
@@ -443,7 +582,9 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
         int uploadCount = 0;
 
         for (Element imgElement : imgElementList) {
-            // String fileUrl = imgElement.attr("src");
+//             String fileUrl = imgElement.attr("src");
+
+
 //            // 获取m属性
 //            String m_attr = imgElement.attr("m");
 //            // 将m属性字符串转为map对象
@@ -490,7 +631,7 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
             }
         }
         return uploadCount;
-    }
+    }*/
 
     @Async
     protected void clearPictureFile(Picture oldPicture) {
@@ -537,6 +678,8 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
             }
             return true;
         });
+        // 上传完成后清理redis缓存
+        this.clearPageCache();
         // 异步清理文件
         this.clearPictureFile(oldPicture);
     }
@@ -563,6 +706,8 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
         // 操作数据库
         boolean result = this.updateById(picture);
         ThrowUtils.throwIf(!result, ErrorCode.OPERATION_ERROR);
+        // 更新完成后清理redis缓存
+        this.clearPageCache();
     }
 
     @Override
@@ -668,6 +813,8 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
         // 5. 操作数据库进行批量更新
         boolean result = this.updateBatchById(pictureList);
         ThrowUtils.throwIf(!result, ErrorCode.OPERATION_ERROR, "批量编辑失败");
+        // 批量更新完成后清理缓存
+        this.clearPageCache();
 
 //        // 分批处理避免长事务
 //        int batchSize = 100;
@@ -701,6 +848,8 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
 
     @Override
     public CreateOutPaintingTaskResponse createPictureOutPaintingTask(CreatePictureOutPaintingTaskRequest createPictureOutPaintingTaskRequest, User loginUser) {
+        boolean tryAcquire = rateLimiterManager.tryAcquire(1, TimeUnit.SECONDS);
+        ThrowUtils.throwIf(!tryAcquire, ErrorCode.PARAMS_ERROR,"请求过于频繁请稍后重试");
         // 获取图片信息
         Long pictureId = createPictureOutPaintingTaskRequest.getPictureId();
         Picture picture = Optional.ofNullable(this.getById(pictureId))
@@ -725,17 +874,33 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
             throw new BusinessException(ErrorCode.PARAMS_ERROR, String.format("图像大小超过10MB限制，当前大小：%.2fMB",
                     picture.getPicSize() / (1024.0 * 1024)));
         }
-        // 校验图像分辨率与单边长度
-        int width = picture.getPicWidth();
-        int height = picture.getPicHeight();
+//        // 校验图像分辨率与单边长度
+//        int width = picture.getPicWidth();
+//        int height = picture.getPicHeight();
+//
+//        if (width < MIN_DIMENSION || height < MIN_DIMENSION) {
+//            throw new BusinessException(ErrorCode.PARAMS_ERROR, String.format("图像分辨率过低，宽/高小于512像素，当前宽：%d，高：%d",
+//                    width, height));
+//        }
+//        if (width > MAX_DIMENSION || height > MAX_DIMENSION) {
+//            throw new BusinessException(ErrorCode.PARAMS_ERROR, String.format("图像分辨率过高，宽/高大于4096像素，当前宽：%d，高：%d",
+//                    width, height));
+//        }
+    }
 
-        if (width < MIN_DIMENSION || height < MIN_DIMENSION) {
-            throw new BusinessException(ErrorCode.PARAMS_ERROR, String.format("图像分辨率过低，宽/高小于512像素，当前宽：%d，高：%d",
-                    width, height));
-        }
-        if (width > MAX_DIMENSION || height > MAX_DIMENSION) {
-            throw new BusinessException(ErrorCode.PARAMS_ERROR, String.format("图像分辨率过高，宽/高大于4096像素，当前宽：%d，高：%d",
-                    width, height));
+    /**
+     * 清理分页查询缓存 - Cache-Aside模式的核心
+     */
+    public void clearPageCache() {
+        // 删除所有分页查询相关的缓存
+        try {
+            // 清理Redis缓存
+            Set<String> keys = stringRedisTemplate.keys("leopicture:listPictureVOByPage:*");
+            if (keys != null && !keys.isEmpty()) {
+                stringRedisTemplate.delete(keys);
+            }
+        } catch (Exception e) {
+            log.error("清理分页缓存失败", e);
         }
     }
 

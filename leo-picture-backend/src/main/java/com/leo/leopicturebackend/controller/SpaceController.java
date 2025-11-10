@@ -18,6 +18,8 @@ import com.leo.leopicturebackend.model.vo.SpaceVO;
 import com.leo.leopicturebackend.service.PictureService;
 import com.leo.leopicturebackend.service.SpaceService;
 import com.leo.leopicturebackend.service.UserService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -34,6 +36,7 @@ import java.util.stream.Collectors;
 @Slf4j
 @RestController
 @RequestMapping("/space")
+//@Tag(name = "空间模块")
 public class SpaceController {
 
     @Resource
@@ -47,6 +50,7 @@ public class SpaceController {
 
 
     @PostMapping("/add")
+    @Operation(summary="空间创建")
     public BaseResponse<Long> addSpace(@RequestBody SpaceAddRequest spaceAddRequest, HttpServletRequest request) {
         ThrowUtils.throwIf(spaceAddRequest == null, ErrorCode.PARAMS_ERROR);
         User loginUser = userService.getLoginUser(request);

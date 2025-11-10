@@ -1,5 +1,6 @@
 package com.leo.leopicturebackend.controller;
 
+import cn.hutool.core.lang.TypeReference;
 import cn.hutool.core.util.RandomUtil;
 import cn.hutool.json.JSONUtil;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
@@ -34,8 +35,11 @@ import com.leo.leopicturebackend.model.vo.PictureVO;
 import com.leo.leopicturebackend.service.PictureService;
 import com.leo.leopicturebackend.service.SpaceService;
 import com.leo.leopicturebackend.service.UserService;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.extern.slf4j.Slf4j;
 
+import org.redisson.api.RLock;
+import org.redisson.api.RedissonClient;
 import org.springframework.beans.BeanUtils;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.ValueOperations;
@@ -57,6 +61,7 @@ import cn.hutool.core.util.StrUtil;
 @Slf4j
 @RestController
 @RequestMapping("/picture")
+@Tag(name = "图片模块")
 public class PictureController {
 
     @Resource
@@ -76,6 +81,8 @@ public class PictureController {
 
     @Resource
     private SpaceUserAuthManager spaceUserAuthManager;
+    @Resource
+    private RedissonClient redissonClient;
 
     /**
      * 本地缓存
@@ -256,7 +263,7 @@ public class PictureController {
     }
 
     /**
-     * 分页获取图片列表（封装类，有缓存）
+     * 分页获取图片列表（封装类，有缓存）【结合旁路缓存解决数据一致性】
      */
     @Deprecated
     @PostMapping("/list/page/vo/cache")
@@ -268,41 +275,89 @@ public class PictureController {
         ThrowUtils.throwIf(size > 20, ErrorCode.PARAMS_ERROR);
         // 普通用户默认只能看到审核通过的数据
         pictureQueryRequest.setReviewStatus(PictureReviewStatusEnum.PASS.getValue());
+
         // 查询缓存，缓存中没有，再查询数据库
         // 构建缓存key
         String queryCondition = JSONUtil.toJsonStr(pictureQueryRequest);
         String hashKey = DigestUtils.md5DigestAsHex(queryCondition.getBytes());
         String cacheKey = String.format("leopicture:listPictureVOByPage:%s", hashKey);
-        // 1. 先从本地缓存中查询
-        String cachedValue = LOCAL_CACHE.getIfPresent(cacheKey);
-        if (cachedValue != null) {
-            // 如果缓存命中，返回结果
-            Page<PictureVO> cachedPage = JSONUtil.toBean(cachedValue, Page.class);
-            return ResultUtils.success(cachedPage);
+
+        // 添加分布式锁，防止缓存击穿
+        String lockKey = "lock:" + cacheKey;
+        RLock lock = redissonClient.getLock(lockKey);
+
+        //双缓存+随机过期时间防止缓存雪崩
+        try {
+            // 1. 先从本地缓存中查询
+            String cachedValue = LOCAL_CACHE.getIfPresent(cacheKey);
+            if (cachedValue != null) {
+                // 如果缓存命中，返回结果
+                Page<PictureVO> cachedPage = JSONUtil.toBean(cachedValue, Page.class);
+                return ResultUtils.success(cachedPage);
+            }
+            // 2. 本地缓存未命中，查询 Redis 分布式缓存。操作redis，String类型
+            ValueOperations<String, String> opsForValue = stringRedisTemplate.opsForValue();
+            cachedValue = opsForValue.get(cacheKey);
+            if (cachedValue != null) {
+                // 如果缓存命中，更新本地缓存，返回结果
+                LOCAL_CACHE.put(cacheKey, cachedValue);
+                if ("[]".equals(cachedValue)) { // 处理预缓存的空结果，避免缓存穿透
+                    return ResultUtils.success(new Page<>());
+                }
+                Page<PictureVO> cachedPage = JSONUtil.toBean(cachedValue,
+                        new TypeReference<Page<PictureVO>>() {
+                        }, true);
+                return ResultUtils.success(cachedPage);
+            }
+            // 3.缓存都未命中，尝试获取分布式锁
+            if (lock.tryLock(3, 10, TimeUnit.SECONDS)) { // 等待3秒，持有锁10秒后放开
+                try {
+                    // 双重检查，防止重复查询数据库
+                    cachedValue = opsForValue.get(cacheKey);
+                    if (cachedValue != null) {
+                        LOCAL_CACHE.put(cacheKey, cachedValue);
+                        Page<PictureVO> cachePage = JSONUtil.toBean(cachedValue,
+                                new TypeReference<Page<PictureVO>>() {
+                                }, true);
+                        return ResultUtils.success(cachePage);
+                    }
+
+                    // 3. 查询数据库
+                    Page<Picture> picturePage = pictureService.page(new Page<>(current, size),
+                            pictureService.getQueryWrapper(pictureQueryRequest));
+                    Page<PictureVO> pictureVOPage = pictureService.getPictureVOPage(picturePage, request);
+                    // 4. 更新缓存
+                    // 更新 Redis 缓存【null值也缓存，防止缓存穿透】
+                    String cacheValue = JSONUtil.toJsonStr(pictureVOPage);
+                    // 设置缓存的过期时间,【5 - 10 分钟过期，防止缓存雪崩】
+                    int cacheExpireTime = 300 + RandomUtil.randomInt(0, 300);
+                    opsForValue.set(cacheKey, cacheValue, cacheExpireTime, TimeUnit.SECONDS);
+                    // 写入本地缓存
+                    LOCAL_CACHE.put(cacheKey, cacheValue);
+                    // 获取封装类
+                    return ResultUtils.success(pictureVOPage);
+                } finally {
+                    // 释放锁
+                    if (lock.isHeldByCurrentThread()) {
+                        lock.unlock();
+                    }
+                }
+            } else {
+                // 获取锁失败，返回空页面或重试
+                return ResultUtils.success(new Page<>());
+            }
+        } catch (Exception e) {
+            log.error("缓存查询失败", e);
+            // 发生异常时，尝试直接查询数据库（降级处理）
+            try {
+                Page<Picture> picturePage = pictureService.page(new Page<>(current, size),
+                        pictureService.getQueryWrapper(pictureQueryRequest));
+                return ResultUtils.success(pictureService.getPictureVOPage(picturePage, request));
+            } catch (Exception ex) {
+                log.error("数据库查询也失败", ex);
+                throw new BusinessException(ErrorCode.SYSTEM_ERROR, "查询失败");
+            }
         }
-        // 2. 本地缓存未命中，查询 Redis 分布式缓存
-        ValueOperations<String, String> opsForValue = stringRedisTemplate.opsForValue();
-        cachedValue = opsForValue.get(cacheKey);
-        if(cachedValue != null) {
-            // 如果缓存命中，更新本地缓存，返回结果
-            LOCAL_CACHE.put(cacheKey, cachedValue);
-            Page<PictureVO> cachedPage = JSONUtil.toBean(cachedValue, Page.class);
-            return ResultUtils.success(cachedPage);
-        }
-        // 3. 查询数据库
-        Page<Picture> picturePage = pictureService.page(new Page<>(current, size),
-                pictureService.getQueryWrapper(pictureQueryRequest));
-        Page<PictureVO> pictureVOPage = pictureService.getPictureVOPage(picturePage, request);
-        // 4. 更新缓存
-        // 更新 Redis 缓存【null值也缓存，防止缓存穿透】
-        String cacheValue = JSONUtil.toJsonStr(pictureVOPage);
-        // 设置缓存的过期时间,【5 - 10 分钟过期，防止缓存雪崩】
-        int cacheExpireTime = 300 + RandomUtil.randomInt(0, 300);
-        opsForValue.set(cacheKey, cacheValue, cacheExpireTime, TimeUnit.SECONDS);
-        // 写入本地缓存
-        LOCAL_CACHE.put(cacheKey, cacheValue);
-        // 获取封装类
-        return ResultUtils.success(pictureVOPage);
     }
 
     /**

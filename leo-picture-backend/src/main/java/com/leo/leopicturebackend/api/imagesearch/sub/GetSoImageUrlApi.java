@@ -30,10 +30,13 @@ public class GetSoImageUrlApi {
                     int start = style.indexOf("url(") + 4;  // 从"Url("之后开始
                     int end = style.indexOf(")", start);    // 找到右括号的位置
                     if (start > 4 && end > start) {
-                        soImageUrl = style.substring(start, end);
+                        soImageUrl = style.substring(start, end);//取出中间字符串
+                        // 校验提取的URL是否有效
+                        if (!soImageUrl.trim().isEmpty()) {
+                            return soImageUrl;
+                        }
                     }
                 }
-                return soImageUrl;
             }
             throw new BusinessException(ErrorCode.OPERATION_ERROR, "搜图失败");
         } catch (Exception e) {

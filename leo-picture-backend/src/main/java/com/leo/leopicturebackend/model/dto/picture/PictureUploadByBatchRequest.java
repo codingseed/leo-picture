@@ -16,7 +16,7 @@ public class PictureUploadByBatchRequest implements Serializable {
     private String searchText;
 
     /**
-     * 抓取数量
+     * 抓取数量，默认设为10个
      */
     private Integer count = 10;
 

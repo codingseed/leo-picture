@@ -32,7 +32,7 @@ public class SoImageSearchApiFacade {
     }
 
     public static void main(String[] args) {
-        // 测试以图搜图功能
+        // 测试以图搜图功能,部分图片后缀格式不支持，如.webp
         String imageUrl = "http://p0.so.qhimg.com/t0257d29c212fceba5e.jpg";
         List<SoImageSearchResult> resultList = searchImage(imageUrl, 0);
         System.out.println("结果列表" + resultList);

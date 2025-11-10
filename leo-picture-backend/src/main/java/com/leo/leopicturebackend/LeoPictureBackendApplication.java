@@ -10,9 +10,9 @@ import org.springframework.scheduling.annotation.EnableAsync;
 
 
 @SpringBootApplication(exclude = {ShardingSphereAutoConfiguration.class})
-@EnableAsync
 @MapperScan("com.leo.leopicturebackend.mapper")
-@EnableAspectJAutoProxy(exposeProxy = true)
+@EnableAspectJAutoProxy(exposeProxy = true)//开启AOP功能,exposeProxy = true 参数的作用是将当前的代理对象暴露到 ThreadLocal 中
+@EnableAsync//开启Spring的异步方法支持
 public class LeoPictureBackendApplication {
 
     public static void main(String[] args) {

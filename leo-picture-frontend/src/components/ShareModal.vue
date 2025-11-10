@@ -21,7 +21,7 @@ interface Props {
 
 const props = withDefaults(defineProps<Props>(), {
   title: '分享图片',
-  link: 'https://www.codefather.cn',
+  link: 'https://picsum.photos/800/600',
 })
 
 // 是否可见

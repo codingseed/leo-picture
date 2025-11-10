@@ -45,14 +45,46 @@ mybatis-plus:
       logic-delete-field: isDelete # 全局逻辑删除的实体字段名
       logic-delete-value: 1 # 逻辑已删除值（默认为 1）
       logic-not-delete-value: 0 # 逻辑未删除值（默认为 0）
+
+## 接口文档配置
+#knife4j:
+#  enable: true
+#  openapi:
+#    title: 接口文档
+#    version: 1.0
+#    group:
+#      default:
+#        api-rule: package
+#        api-rule-resources:
+#          - com.leo.leopicturebackend.controller
+
+
+# ====================== Redisson 配置 ======================
+redisson:
+  # 1. 锁的默认配置（解决 90% 场景，推荐必配）
+  lock:
+    default-lock-ttl: 30000 # 锁默认过期时间（30秒，防止服务宕机导致死锁）
+    retry-interval: 1000    # 获取锁失败时，重试间隔（1秒，避免频繁重试占用资源）
+    retry-attempts: 3       # 获取锁的最大重试次数（3次，超过则返回失败）
+  # 2. 连接池配置（可选，默认已优化，高并发场景可调整）
+  client:
+    connection-pool-size: 64 # 每个 Redis 节点的连接池大小（默认64，高并发可增至128）
+    idle-connection-timeout: 300000 # 连接空闲超时时间（5分钟，超时后关闭连接）
+# =================================================================
+
+
+
 # 接口文档配置
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+
 knife4j:
   enable: true
-  openapi:
-    title: 接口文档
-    version: 1.0
-    group:
-      default:
-        api-rule: package
-        api-rule-resources:
-          - com.leo.leopicturebackend.controller
+  production: false
+  basic:
+    enable: true
+    username: admin
+    password: admin

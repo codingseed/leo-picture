@@ -5,7 +5,7 @@
         <RouterLink to="/">
           <div class="title-bar">
             <img class="logo" src="../assets/logo.png" alt="logo" />
-            <div class="title">Leo云端素材库</div>
+            <div class="title">云梦图坊</div>
           </div>
         </RouterLink>
       </a-col>
@@ -110,14 +110,14 @@ const items = computed(() => filterMenus(originItems))
 
 const router = useRouter()
 // 当前要高亮的菜单项
-const current = ref<string[]>(['home'])
+const current = ref<string[]>([])
 // 监听路由变化，更新当前选中菜单
 router.afterEach((to, from, next) => {
   current.value = [to.path]
 })
 
 // 路由跳转事件
-const doMenuClick = ({ key }: { key: string }) => {
+const doMenuClick = ({ key }) => {
   router.push({
     path: key,
   })

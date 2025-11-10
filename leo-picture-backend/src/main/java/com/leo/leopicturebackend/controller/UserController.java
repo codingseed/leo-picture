@@ -17,6 +17,7 @@ import com.leo.leopicturebackend.model.entity.User;
 import com.leo.leopicturebackend.model.vo.LoginUserVO;
 import com.leo.leopicturebackend.model.vo.UserVO;
 import com.leo.leopicturebackend.service.UserService;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.beans.BeanUtils;
 import org.springframework.web.bind.annotation.*;
 import javax.annotation.Resource;
@@ -26,6 +27,7 @@ import java.util.List;
 
 @RestController
 @RequestMapping("/user")
+//@Tag(name = "用户模块")
 public class UserController {
 
     @Resource
@@ -88,6 +90,7 @@ public class UserController {
     @AuthCheck(mustRole = UserConstant.ADMIN_ROLE)
     public BaseResponse<Long> addUser(@RequestBody UserAddRequest userAddRequest) {
         ThrowUtils.throwIf(userAddRequest == null, ErrorCode.PARAMS_ERROR);
+        ThrowUtils.throwIf(userAddRequest.getUserAccount().length() < 3, ErrorCode.PARAMS_ERROR, "用户账号长度不要小于3");
         User user = new User();
         BeanUtil.copyProperties(userAddRequest, user);
         // 默认密码

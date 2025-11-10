@@ -1,6 +1,6 @@
 /**
  * 图片审核状态
- * @author 程序员鱼皮 <a href="https://www.codefather.cn">编程导航原创项目</a>
+ * @author 程序员Leo <a href="https://github.com/codingseed">程序员Leo个人项目</a>
  */
 export const PIC_REVIEW_STATUS_ENUM = {
   REVIEWING: 0,
