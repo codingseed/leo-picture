@@ -1,6 +1,7 @@
 package com.leo.leopicturebackend.manager.mq;
 
 import com.leo.leopicturebackend.config.RabbitConfig;
+import com.leo.leopicturebackend.manager.LocalCacheManager;
 import com.rabbitmq.client.Channel;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
@@ -23,16 +24,19 @@ public class PictureCacheConsumer {
 
     @Resource
     private StringRedisTemplate stringRedisTemplate;
+    @Resource
+    private LocalCacheManager localCacheManager;
 
     /*
-    * Channel
-消息确认控制：用于手动确认消息处理状态
-连接管理：代表与 RabbitMQ 服务器的通信通道
-操作执行：执行如 basicAck、basicNack 等底层操作
-DELIVERY_TAG
-消息唯一标识：每个消息在通道中的唯一数字标识符
-确认机制关键：用于向 RabbitMQ 确认特定消息的处理状态
-顺序保证：确保消息按正确顺序确认*/
+    Channel
+    消息确认控制：用于手动确认消息处理状态
+    连接管理：代表与 RabbitMQ 服务器的通信通道
+    操作执行：执行如 basicAck、basicNack 等底层操作
+    DELIVERY_TAG
+    消息唯一标识：每个消息在通道中的唯一数字标识符
+    确认机制关键：用于向 RabbitMQ 确认特定消息的处理状态
+    顺序保证：确保消息按正确顺序确认
+    */
     @RabbitListener(queues = RabbitConfig.PICTURE_UPDATE_QUEUE)
     public void handlePictureUpdate(Map<String, Object> message, Channel channel, @Header(AmqpHeaders.DELIVERY_TAG) long deliveryTag) {
         try {
@@ -42,6 +46,8 @@ DELIVERY_TAG
             // 删除相关缓存
             String cacheKey = "leopicture:listPictureVOByPage:*";
             Set<String> keys = stringRedisTemplate.keys(cacheKey);
+            // 清除本地缓存（双缓存一致性）
+            localCacheManager.clearCacheByPattern(cacheKey);
             if (keys != null && !keys.isEmpty()) {
                 stringRedisTemplate.delete(keys);
             }

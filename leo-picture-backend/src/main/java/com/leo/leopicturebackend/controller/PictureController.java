@@ -21,6 +21,7 @@ import com.leo.leopicturebackend.constant.UserConstant;
 import com.leo.leopicturebackend.exception.BusinessException;
 import com.leo.leopicturebackend.exception.ErrorCode;
 import com.leo.leopicturebackend.exception.ThrowUtils;
+import com.leo.leopicturebackend.manager.LocalCacheManager;
 import com.leo.leopicturebackend.manager.auth.SpaceUserAuthManager;
 import com.leo.leopicturebackend.manager.auth.StpKit;
 import com.leo.leopicturebackend.manager.auth.annotation.SaSpaceCheckPermission;
@@ -87,12 +88,12 @@ public class PictureController {
     /**
      * 本地缓存
      */
-    private final Cache<String, String> LOCAL_CACHE = Caffeine.newBuilder()
-            .initialCapacity(1024)
-            .maximumSize(10_000L) // 最大 10000 条
-            // 缓存 5 分钟后移除
-            .expireAfterWrite(Duration.ofMinutes(5))
-            .build();
+
+    private final Cache<String, String> LOCAL_CACHE;
+
+    public PictureController(LocalCacheManager localCacheManager) {
+        this.LOCAL_CACHE = localCacheManager.getLocalCache();
+    }
 
     /**
      * 上传图片（可重新上传）

@@ -45,10 +45,10 @@ public class SlidingWindowRateLimiter {
         if (currentCount >= limit){
             return false;
         }
-        //添加记录当前请求到时间窗口内
+        // 添加记录当前请求到时间窗口内
         zSetOperations.add(redisKey,String.valueOf(now),now);
 
-        //设置过期时间
+        // 设置过期时间
         redisTemplate.expire(redisKey, windowSize, TimeUnit.SECONDS);
 
         return true;
