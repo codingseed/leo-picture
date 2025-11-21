@@ -36,7 +36,7 @@ public interface PictureService extends IService<Picture> {
      */
     PictureVO uploadPicture(Object inputSource,
                             PictureUploadRequest pictureUploadRequest,
-                            User loginUser);
+                            User loginUser) throws InterruptedException;
 
     /**
      * 获取图片包装类（单条）

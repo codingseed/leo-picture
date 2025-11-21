@@ -1,6 +1,7 @@
 package com.leo.leopicturebackend.ai;
 
 import com.leo.leopicturebackend.ai.tools.ImageGenerationTool;
+import dev.langchain4j.community.model.zhipu.ZhipuAiChatModel;
 import dev.langchain4j.mcp.McpToolProvider;
 import dev.langchain4j.memory.chat.MessageWindowChatMemory;
 import dev.langchain4j.model.chat.ChatModel;
@@ -26,6 +27,9 @@ public class AiCoderHelperServiceFactory {
     
     @Resource
     private ImageGenerationTool imageGenerationTool;
+
+    @Resource
+    private ZhipuAiChatModel myZhipuChatModel;
 
     @Bean
     public AiCoderHelperServices aiCoderHelperServices() {

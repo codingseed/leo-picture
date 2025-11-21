@@ -2,6 +2,7 @@ package com.leo.leopicturebackend.mapper;
 
 import com.leo.leopicturebackend.model.entity.User;
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
+import org.apache.ibatis.annotations.Param;
 
 /**
 * @author Leo
@@ -10,6 +11,7 @@ import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 * @Entity com.leo.leopicturebackend.model.entity.User
 */
 public interface UserMapper extends BaseMapper<User> {
+    String selectPhone(@Param("phone") String phone);
 
 }
 

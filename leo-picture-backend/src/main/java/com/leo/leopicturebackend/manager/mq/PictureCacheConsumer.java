@@ -40,7 +40,7 @@ DELIVERY_TAG
             String operation = (String) message.get("operation");
 
             // 删除相关缓存
-            String cacheKey = "fupicture:listPictureVOByPage:*";
+            String cacheKey = "leopicture:listPictureVOByPage:*";
             Set<String> keys = stringRedisTemplate.keys(cacheKey);
             if (keys != null && !keys.isEmpty()) {
                 stringRedisTemplate.delete(keys);

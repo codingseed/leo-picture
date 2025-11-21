@@ -58,12 +58,13 @@
             <artifactId>shardingsphere-jdbc-core-spring-boot-starter</artifactId>
             <version>5.2.0</version>
         </dependency>
-        <!-- 工具库 -->
+        <!-- 令牌桶依赖 -->
         <dependency>
             <groupId>com.google.guava</groupId>
             <artifactId>guava</artifactId>
             <version>33.0.0-jre</version>
         </dependency>
+        <!--  工具库:https://doc.hutool.cn/pages/ai/-->
         <dependency>
             <groupId>cn.hutool</groupId>
             <artifactId>hutool-all</artifactId>
@@ -193,6 +194,11 @@
         <dependency>
             <groupId>dev.langchain4j</groupId>
             <artifactId>langchain4j-community-dashscope-spring-boot-starter</artifactId>
+            <version>1.1.0-beta7</version>
+        </dependency>
+        <dependency>
+            <groupId>dev.langchain4j</groupId>
+            <artifactId>langchain4j-community-zhipu-ai</artifactId>
             <version>1.1.0-beta7</version>
         </dependency>
         <dependency>

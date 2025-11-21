@@ -16,6 +16,7 @@
             <result property="createTime" column="createTime" />
             <result property="updateTime" column="updateTime" />
             <result property="isDelete" column="isDelete" />
+            <result property="phone" column="phone"/>
             <result property="vipExpireTime" column="vipExpireTime" />
             <result property="vipCode" column="vipCode" />
             <result property="vipNumber" column="vipNumber" />
@@ -23,9 +24,12 @@
 
     <sql id="Base_Column_List">
         id,userAccount,userPassword,
-        userName,userAvatar,userProfile,
+        userName,userAvatar,userProfile,phone,
         userRole,editTime,createTime,
         updateTime,isDelete,
         vipExpireTime,vipCode,vipNumber
     </sql>
+    <select id="selectPhone" resultType="java.lang.String">
+        SELECT phone FROM `user` WHERE phone = #{phone} AND isDelete = 0
+    </select>
 </mapper>

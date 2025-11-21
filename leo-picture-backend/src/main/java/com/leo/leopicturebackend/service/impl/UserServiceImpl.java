@@ -15,6 +15,7 @@ import com.leo.leopicturebackend.exception.BusinessException;
 import com.leo.leopicturebackend.exception.ErrorCode;
 import com.leo.leopicturebackend.manager.auth.StpKit;
 import com.leo.leopicturebackend.model.dto.user.UserQueryRequest;
+import com.leo.leopicturebackend.model.dto.user.UserRegisterRequest;
 import com.leo.leopicturebackend.model.dto.user.VipCode;
 import com.leo.leopicturebackend.model.entity.User;
 import com.leo.leopicturebackend.model.enums.UserRoleEnum;
@@ -22,6 +23,7 @@ import com.leo.leopicturebackend.model.vo.LoginUserVO;
 import com.leo.leopicturebackend.model.vo.UserVO;
 import com.leo.leopicturebackend.service.UserService;
 import com.leo.leopicturebackend.mapper.UserMapper;
+import com.leo.leopicturebackend.utils.SmsLimiter;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.io.Resource;
@@ -48,16 +50,25 @@ import java.util.stream.Collectors;
 public class UserServiceImpl extends ServiceImpl<UserMapper, User>
     implements UserService{
 
+    @Autowired
+    private SmsLimiter smsLimiter;
+
+    @Autowired
+    private UserMapper userMapper;
+
     /**
      * 用户注册
      *
-     * @param userAccount   用户账户
-     * @param userPassword  用户密码
-     * @param checkPassword 校验密码
-     * @return
+     * @param userRegisterRequest
+     * @return userId
      */
     @Override
-    public long userRegister(String userAccount, String userPassword, String checkPassword) {
+    public long userRegister(UserRegisterRequest userRegisterRequest) {
+        String userAccount = userRegisterRequest.getUserAccount();
+        String userPassword = userRegisterRequest.getUserPassword();
+        String checkPassword = userRegisterRequest.getCheckPassword();
+        String code = userRegisterRequest.getCode();
+        String phone = userRegisterRequest.getPhone();
         // 1. 校验
         if (StrUtil.hasBlank(userAccount, userPassword, checkPassword)) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR, "参数为空");
@@ -78,6 +89,14 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User>
         if (count > 0) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR, "账号重复");
         }
+
+        String havePhone = userMapper.selectPhone(phone);
+        if (havePhone != null){
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "手机号已存在");
+        }
+        if (!smsLimiter.verifyCode(phone,code)) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "验证码错误");
+        }
         // 3. 加密
         String encryptPassword = getEncryptPassword(userPassword);
         // 4. 插入数据
@@ -86,6 +105,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User>
         user.setUserPassword(encryptPassword);
         user.setUserName("无名");
         user.setUserRole(UserRoleEnum.USER.getValue());
+        user.setPhone(phone);
         boolean saveResult = this.save(user);
         if (!saveResult) {
             throw new BusinessException(ErrorCode.SYSTEM_ERROR, "注册失败，数据库错误");

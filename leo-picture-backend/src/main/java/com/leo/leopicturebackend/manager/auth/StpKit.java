@@ -7,6 +7,7 @@ import org.springframework.stereotype.Component;
 /**
  * StpLogic 门面类，管理项目中所有的 StpLogic 账号体系
  * 添加 @Component 注解的目的是确保静态属性 DEFAULT 和 SPACE 被初始化
+ * 定义不同类型的登录逻辑（如空间权限）
  */
 @Component
 public class StpKit {

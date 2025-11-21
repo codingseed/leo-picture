@@ -79,7 +79,10 @@ public class User implements Serializable {
      * 更新时间
      */
     private Date updateTime;
-
+    /**
+     * 手机号吗
+     */
+    private String phone;
     /**
      * 是否删除
      */

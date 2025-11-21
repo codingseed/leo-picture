@@ -2,6 +2,7 @@ package com.leo.leopicturebackend.service;
 
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.leo.leopicturebackend.model.dto.user.UserQueryRequest;
+import com.leo.leopicturebackend.model.dto.user.UserRegisterRequest;
 import com.leo.leopicturebackend.model.entity.User;
 import com.baomidou.mybatisplus.extension.service.IService;
 import com.leo.leopicturebackend.model.vo.LoginUserVO;
@@ -18,13 +19,10 @@ import java.util.List;
 public interface UserService extends IService<User> {
     /**
      * 用户注册
-     *
-     * @param userAccount   用户账户
-     * @param userPassword  用户密码
-     * @param checkPassword 校验密码
+     *userRegisterRequest
      * @return 新用户 id
      */
-    long userRegister(String userAccount, String userPassword, String checkPassword);
+    long userRegister(UserRegisterRequest userRegisterRequest);
 
     /**
      * 用户登录

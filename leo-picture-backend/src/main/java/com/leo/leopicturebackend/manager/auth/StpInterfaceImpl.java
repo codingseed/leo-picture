@@ -36,7 +36,9 @@ import java.util.*;
 import static com.leo.leopicturebackend.constant.UserConstant.USER_LOGIN_STATE;
 
 /**
+ * 权限获取的具体实现
  * 自定义权限加载接口实现类
+ * 核心实现是通过实现StpInterface接口，自定义权限获取逻辑，结合Sa-Token的注解机制实现方法级别的权限控制。
  */
 @Component    // 保证此类被 SpringBoot 扫描，完成 Sa-Token 的自定义权限验证扩展
 public class StpInterfaceImpl implements StpInterface {

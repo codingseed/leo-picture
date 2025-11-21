@@ -60,6 +60,10 @@ public class UserVO implements Serializable {
      * 创建时间
      */
     private Date createTime;
+    /**
+     * 手机号
+     */
+    private String phone;
 
     private static final long serialVersionUID = 1L;
 }

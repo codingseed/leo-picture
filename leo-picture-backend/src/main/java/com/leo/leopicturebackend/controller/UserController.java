@@ -10,6 +10,7 @@ import com.leo.leopicturebackend.common.ResultUtils;
 import com.leo.leopicturebackend.constant.UserConstant;
 import com.leo.leopicturebackend.exception.BusinessException;
 import com.leo.leopicturebackend.exception.ErrorCode;
+import com.leo.leopicturebackend.exception.SmsException;
 import com.leo.leopicturebackend.exception.ThrowUtils;
 import com.leo.leopicturebackend.manager.auth.StpKit;
 import com.leo.leopicturebackend.model.dto.user.*;
@@ -17,6 +18,7 @@ import com.leo.leopicturebackend.model.entity.User;
 import com.leo.leopicturebackend.model.vo.LoginUserVO;
 import com.leo.leopicturebackend.model.vo.UserVO;
 import com.leo.leopicturebackend.service.UserService;
+import com.leo.leopicturebackend.utils.SendSmsUtils;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.beans.BeanUtils;
 import org.springframework.web.bind.annotation.*;
@@ -31,7 +33,9 @@ import java.util.List;
 public class UserController {
 
     @Resource
-    private UserService userService;
+    private  UserService userService;
+    @Resource
+    private SendSmsUtils sendSmsUtils;
 
     /**
      * 用户注册
@@ -39,11 +43,29 @@ public class UserController {
     @PostMapping("/register")
     public BaseResponse<Long> userRegister(@RequestBody UserRegisterRequest userRegisterRequest) {
         ThrowUtils.throwIf(userRegisterRequest == null, ErrorCode.PARAMS_ERROR);
-        String userAccount = userRegisterRequest.getUserAccount();
-        String userPassword = userRegisterRequest.getUserPassword();
-        String checkPassword = userRegisterRequest.getCheckPassword();
-        long result = userService.userRegister(userAccount, userPassword, checkPassword);
+//        String userAccount = userRegisterRequest.getUserAccount();
+//        String userPassword = userRegisterRequest.getUserPassword();
+//        String checkPassword = userRegisterRequest.getCheckPassword();
+        long result = userService.userRegister(userRegisterRequest);
         return ResultUtils.success(result);
+    }
+
+    @PostMapping("/sendSms")
+    public BaseResponse  sendSms(String phone) {
+        try {
+            // 1. 参数校验
+            ThrowUtils.throwIf(phone == null, ErrorCode.PARAMS_ERROR,"手机号参数错误");
+            // 2. 手机号合法性校验
+            ThrowUtils.throwIf(!sendSmsUtils.isPhoneNum(phone), ErrorCode.PARAMS_ERROR,"手机号参数错误");
+            // 3.发送短信
+            sendSmsUtils.sendVerificationCode( phone);
+            //4. 返回结果
+            return ResultUtils.success("验证码发送成功");
+        }catch (SmsException e){
+            return ResultUtils.error(ErrorCode.OPERATION_ERROR,e.getMessage());
+        }catch (Exception e){
+            return ResultUtils.error(ErrorCode.SYSTEM_ERROR,e.getMessage());
+        }
     }
 
     /**
@@ -108,8 +130,8 @@ public class UserController {
      */
     @GetMapping("/get")
     @AuthCheck(mustRole = UserConstant.ADMIN_ROLE)
-    public BaseResponse<User> getUserById(long id) {
-        ThrowUtils.throwIf(id <= 0, ErrorCode.PARAMS_ERROR);
+    public BaseResponse<User> getUserById(@RequestParam(required = false) Long id) {
+        ThrowUtils.throwIf(id <= 0|| id == null, ErrorCode.PARAMS_ERROR);
         User user = userService.getById(id);
         ThrowUtils.throwIf(user == null, ErrorCode.NOT_FOUND_ERROR);
         return ResultUtils.success(user);
@@ -119,9 +141,10 @@ public class UserController {
      * 根据 id 获取包装类
      */
     @GetMapping("/get/vo")
-    public BaseResponse<UserVO> getUserVOById(long id) {
-        BaseResponse<User> response = getUserById(id);
-        User user = response.getData();
+    public BaseResponse<UserVO> getUserVOById(@RequestParam(required = false) Long id) {
+        ThrowUtils.throwIf(id <= 0|| id == null, ErrorCode.PARAMS_ERROR);
+        User user = userService.getById(id);
+        ThrowUtils.throwIf(user == null, ErrorCode.NOT_FOUND_ERROR);
         return ResultUtils.success(userService.getUserVO(user));
     }
 

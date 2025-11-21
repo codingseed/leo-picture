@@ -25,6 +25,8 @@ import java.util.List;
 import java.util.Objects;
 
 /**
+ * 图片上传模板
+ * 抽象类可以包含具体方法，抽象类可以包含成员变量，子类只需实现抽象方法。
  * @author bxl
  * @version 1.0
  * @date 2025-09-25 19:17
