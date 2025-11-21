@@ -492,6 +492,9 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
      * @param loginUser                   登录用户
      * @return 成功创建的图片数
      */
+    // 批量上传需要处理多张图片，每张图片的上传都是独立的I/O操作
+    // 如果串行执行，用户需要等待所有图片上传完成才能得到响应
+    // 所以这里使用线程池并发执行多个图片上传任务，并使用CompletableFuture异步执行，并且异常隔离
     @Override
     public Integer uploadPictureByBatch(PictureUploadByBatchRequest pictureUploadByBatchRequest, User loginUser) {
         //校验参数

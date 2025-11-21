@@ -88,3 +88,41 @@ knife4j:
     enable: true
     username: admin
     password: admin
+
+# ====================== COS 云对象存储配置 ======================
+cos:
+  client:
+    secret-id: #your
+    secret-key: #your
+    bucket: #your # 存储桶名
+    region: #your  # 区域
+    host: #your  # cos域名
+
+# 滑动窗口限流
+window:
+  rate:
+    limit: 1 # 默认限流1次
+    windowSize: 60 # 滑动窗口大小，单位秒
+
+langchain4j:
+  community:
+    dashscope:
+      chat-model:
+        api-key: #your
+        model-name: qwen-max
+      embedding-model:
+        model-name: text-embedding-v4
+        api-key: #your
+      streaming-chat-model:
+        model-name: qwen-max
+        api-key: #your
+#      image-model:  # 添加图像模型配置
+#        model-name: wanx-v1  # 阿里云百炼万象生成模型
+#        api-key: #your
+
+bigmodel:
+  api-key: #your #智谱
+
+aliYunAi:
+  apiKey: #your
+
