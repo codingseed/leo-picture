@@ -48,6 +48,9 @@ public class PictureEditEventWorkHandler implements WorkHandler<PictureEditEvent
             case EDIT_ACTION:
                 pictureEditHandler.handleEditActionMessage(pictureEditRequestMessage, session, user, pictureId);
                 break;
+            case GET_CURRENT_EDIT_STATUS:
+                pictureEditHandler.handleGetCurrentEditStatusMessage(pictureEditRequestMessage, session, user, pictureId);// 处理获取当前编辑状态事件
+                break;
             default:
                 // 其他消息类型，返回错误提示
                 PictureEditResponseMessage pictureEditResponseMessage = new PictureEditResponseMessage();

@@ -106,7 +106,8 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
     private RateLimiterManager rateLimiterManager;
     @Resource
     private RabbitTemplate rabbitTemplate;
-
+    @Resource(name = "pictureUploadExecutor")
+    private ThreadPoolExecutor executorService;
 
     // 最大图像大小：10MB（字节）
     private static final long MAX_SIZE = 10 * 1024 * 1024;
@@ -160,9 +161,10 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
                 // 仅当团队空间存在时获取分布式锁，避免在团队空间图片上传时多个线程同时上传图片
                 //空间唯一ID加锁，确保同一空间内的操作串行化，而不同空间之间可以并行操作
                 String lockKey = "spaceLock:" + spaceId;
-                lock = redissonClient.getLock(lockKey);//ava 内存中创建一个 RLock 对象实例.绑定到指定的 lockKey
-                // 尝试获取锁（带超时避免死锁）
-                locked = lock.tryLock(2, 5, TimeUnit.SECONDS);
+                lock = redissonClient.getLock(lockKey);// Java 内存中创建一个 RLock 对象实例.绑定到指定的 lockKey
+                // 尝试获取锁,重试等待时间1s（不设置超时时间，触发看门狗机制）。TTL默认30秒表示：如果从现在开始不再续期，这个锁会在30秒后自动过期（保证客户端崩溃不会死锁）。
+//                locked = lock.tryLock(2, 5, TimeUnit.SECONDS);
+                locked = lock.tryLock(1, TimeUnit.SECONDS);
                 if (!locked) {
                     throw new BusinessException(ErrorCode.OPERATION_ERROR, "系统繁忙，请稍后再试");
                 }
@@ -226,14 +228,14 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
                     // 更新空间的使用额度(带并发安全控制)
                     boolean updateResult = spaceService.lambdaUpdate()
                             .eq(Space::getId, finalSpaceId)
-                            //大于等于
-                            .ge(Space::getTotalCount, finalSpace.getMaxCount())
-                            .ge(Space::getTotalSize, finalSpace.getMaxSize())
+                            //小于最大限制才允许更新
+                            .lt(Space::getTotalCount, finalSpace.getMaxCount())
+                            .lt(Space::getTotalSize, finalSpace.getMaxSize())
                             .setSql("totalSize = totalSize + " + picture.getPicSize())
                             .setSql("totalCount = totalCount + 1")
                             .update();
                     //双重验证,检查是否超额
-                    if (!updateResult || spaceService.getById(finalSpaceId).getTotalSize()>= finalSpace.getMaxSize()){
+                    if (!updateResult || spaceService.getById(finalSpaceId).getTotalSize() >= finalSpace.getMaxSize()){
                         throw new BusinessException(ErrorCode.OPERATION_ERROR, "空间额度不足");
                     }
                 }
@@ -361,7 +363,10 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
             Long userId = pictureVO.getUserId();
             User user = null;
             if (userIdUserListMap.containsKey(userId)) {
-                user = userIdUserListMap.get(userId).get(0);
+                List<User> userList = userIdUserListMap.get(userId);
+                if (userList != null && !userList.isEmpty()) {
+                    user = userList.get(0);
+                }
             }
             pictureVO.setUser(userService.getUserVO(user));
         });
@@ -514,6 +519,8 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
             document = Jsoup.connect(fetchUrl)
                     .userAgent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36")
                     .referrer("https://cn.bing.com")
+                    .timeout(10000) // 增加超时时间
+                    .maxBodySize(0) // 不限制响应体大小
                     .get();
         } catch (IOException e) {
             log.error("图片抓取失败", e);
@@ -531,34 +538,36 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
         // 使用 CompletableFuture 并发处理图片上传
         List<CompletableFuture<Boolean>> uploadFutures = new ArrayList<>();
 
-        // 创建一个线程池用于执行异步任务
-        ThreadPoolExecutor executorService = new ThreadPoolExecutor//我的7945HX16核心的CPU，腾讯云SDK建议≤10
-                (10, 12, 5,
-                        TimeUnit.SECONDS, new LinkedBlockingQueue<>(20), new ThreadFactory() {
-                    @Override
-                    public Thread newThread(Runnable r) {
-                        Thread thread = new Thread(r,"upload-thread-");
-                        thread.setDaemon(false);
-                        return thread;
-                    }
-                }, new ThreadPoolExecutor.CallerRunsPolicy());
-//        ExecutorService executorService = Executors.newFixedThreadPool(10);//固定长线程池
+        // 创建一个专用的线程池用于执行异步任务，避免与其他任务竞争
+        ThreadPoolExecutor batchUploadExecutor = new ThreadPoolExecutor(
+                10, 20, 5,
+                TimeUnit.SECONDS, new LinkedBlockingQueue<>(200),
+                r -> {
+                    Thread thread = new Thread(r, "batch-upload-thread-");
+                    thread.setDaemon(false);
+                    return thread;
+                },
+                new ThreadPoolExecutor.CallerRunsPolicy());
+
         //取一个最大值，count默认10
         int maxUploads = Math.min(count, imgElementList.size());
 
         // 添加简单监控，单例定时线程池，独立于主线程运行
         ScheduledExecutorService monitorExecutor = Executors.newSingleThreadScheduledExecutor();
         // 固定频率执行定时任务。(Runnable command(要执行的任务（Runnable), long initialDelay(首次执行的延迟时间), long period连续执行之间的时间间隔（周期), TimeUnit unit)
-        monitorExecutor.scheduleAtFixedRate(
-                () -> {
-                    int queueSize = executorService.getQueue().size();
+        monitorExecutor.scheduleAtFixedRate(() -> {
+                    int queueSize = batchUploadExecutor.getQueue().size();
+                    int activeCount = batchUploadExecutor.getActiveCount();
+                    long completedTaskCount = batchUploadExecutor.getCompletedTaskCount();
                     if (queueSize > 20) {
-                        log.warn("图片上传队列堆积 | 队列大小: {}", queueSize);
+                        log.warn("图片上传队列堆积 | 队列大小: {}, 活跃线程数: {}, 已完成任务数: {}", queueSize, activeCount, completedTaskCount);
+                    } else {
+                        log.info("图片上传状态 | 队列大小: {}, 活跃线程数: {}, 已完成任务数: {}", queueSize, activeCount, completedTaskCount);
                     }
                 },
                 5, 5, TimeUnit.SECONDS);
 
-
+        //遍历图片处理
         for (int i = 0; i < maxUploads; i++) {
             Element element = imgElementList.get(i);
             // 获取data-m属性中的JSON字符串
@@ -590,15 +599,49 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
                 PictureUploadRequest pictureUploadRequest = new PictureUploadRequest();
                 pictureUploadRequest.setFileUrl(finalFileUrl);
                 pictureUploadRequest.setPicName(finalNamePrefix + (index + 1));
-                try {
-                    PictureVO pictureVO = this.uploadPicture(finalFileUrl, pictureUploadRequest, loginUser);
-                    log.info("图片上传成功：id= {}, url={}", pictureVO.getId(),finalFileUrl);
-                    return true;
-                } catch (Exception e) {
-                    log.error("图片上传失败：{},url={}", e.getMessage(),finalFileUrl);
-                    return false;
+
+                // 添加稍后重试机制
+                int maxRetries = 3;
+                for (int retry = 0; retry < maxRetries; retry++) {
+                    try {
+                        PictureVO pictureVO = this.uploadPicture(finalFileUrl, pictureUploadRequest, loginUser);
+                        log.info("图片上传成功：id= {}, url={}, 重试次数={}", pictureVO.getId(), finalFileUrl, retry);
+                        return true;
+                    } catch (Exception e) {
+                        log.warn("图片上传失败，正在进行第{}次重试：{}, url={}", retry + 1, e.getMessage(), finalFileUrl);
+                        if (retry == maxRetries - 1) {
+                            // 最后一次重试仍然失败
+                            log.error("图片上传最终失败：{}, url={}", e.getMessage(), finalFileUrl);
+                            return false;
+                        }
+                        // 等待一段时间再重试
+                        try {
+                            Thread.sleep(1000 * (retry + 1)); // 递增等待时间
+                        } catch (InterruptedException ie) {
+                            Thread.currentThread().interrupt();
+                            return false;
+                        }
+                    }
                 }
-            }, executorService).exceptionally(throwable -> {
+                return false;
+            }, batchUploadExecutor).exceptionally(          // 可对单个任务处理异常
+                    throwable -> {
+                        // 增强的异常处理
+                        if (throwable.getCause() instanceof RejectedExecutionException) {
+                            log.warn("线程池拒绝执行任务，采用降级策略: {}", finalFileUrl);
+                            // 降级方案: 同步执行
+                            try {
+                                PictureUploadRequest pictureUploadRequest = new PictureUploadRequest();
+                                pictureUploadRequest.setFileUrl(finalFileUrl);
+                                pictureUploadRequest.setPicName(finalNamePrefix + (index + 1));
+                                PictureVO pictureVO = this.uploadPicture(finalFileUrl, pictureUploadRequest, loginUser);
+                                log.info("降级处理成功：id= {}, url={}", pictureVO.getId(), finalFileUrl);
+                                return true;
+                            } catch (Exception e) {
+                                log.error("降级处理失败：{},url={}", e.getMessage(), finalFileUrl);
+                                return false;
+                            }
+                        }
                 log.error("第{}张图片上传失败：{},url={}", index,throwable.getMessage(),finalFileUrl);
                 return false;
             });
@@ -630,13 +673,31 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
                     .thenApply(v -> uploadFutures.stream()
                             .map(CompletableFuture::join)
                             .collect(Collectors.toList()))
-                    .get(60, TimeUnit.SECONDS); // 等待所有任务完成,设置60秒超时
+                    .get(120, TimeUnit.SECONDS); // 增加超时时间到120秒
             uploadCount = (int) results.stream().filter(Boolean::booleanValue).count();
         } catch (Exception e) {
             log.error("批量上传过程中发生异常", e);
         } finally {
             // 关闭线程池
-            executorService.shutdown();
+            batchUploadExecutor.shutdown();
+            try {
+                // 等待线程池终止最多30秒
+                if (!batchUploadExecutor.awaitTermination(30, TimeUnit.SECONDS)) {
+                    batchUploadExecutor.shutdownNow();
+                }
+            } catch (InterruptedException e) {
+                batchUploadExecutor.shutdownNow();
+            }
+
+            // 关闭监控线程池
+            monitorExecutor.shutdown();
+            try {
+                if (!monitorExecutor.awaitTermination(5, TimeUnit.SECONDS)) {
+                    monitorExecutor.shutdownNow();
+                }
+            } catch (InterruptedException e) {
+                monitorExecutor.shutdownNow();
+            }
         }
         return uploadCount;
     }

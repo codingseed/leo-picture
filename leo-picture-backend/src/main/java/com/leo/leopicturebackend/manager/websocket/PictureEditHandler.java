@@ -40,12 +40,31 @@ public class PictureEditHandler extends TextWebSocketHandler {
     @Lazy
     private PictureEditEventProducer pictureEditEventProducer;
 
-    @Resource
-    private ObjectMapper objectMapper;
-
+    /*
+    * 一个“编辑锁”：这个Map记录着每张图片的“编辑令牌”在谁手里。
+    * 只有持有令牌的用户才能执行编辑操作（handleEditActionMessage中会检查），
+    * 这完美解决了多人同时编辑的冲突问题。一种乐观锁在应用层的实现
+    * Map<Long, Long> pictureEditingUsers
+            Key: pictureId (图片ID)
+            Value: userId (用户ID)
+            业务含义：记录某张图片当前被谁编辑。
+            存储结构：
+            假设有 pictureId=1 的图片正在被 userId=100 的用户编辑
+            那么在Map中就是：1 -> 100
+            同一个pictureId只能对应一个userId，因为一张图片同一时刻只能有一个人编辑(独占锁写锁)*/
     // 每张图片的编辑状态，key: pictureId, value: 当前正在编辑的用户 ID
     private final Map<Long, Long> pictureEditingUsers = new ConcurrentHashMap<>();
-
+    /*
+       * 一个分组广播模型。以pictureId为组，管理所有订阅了该图片编辑状态的会话。
+         当需要广播时，可以直接从Map中取出目标Set进行高效推送，避免了遍历所有连接的巨大开销
+         * Map<Long, Set<WebSocketSession>> pictureSessions
+               Key: pictureId (图片ID)
+               Value: Set<WebSocketSession> (WebSocket会话集合)
+               业务含义：记录正在观看某张图片的所有用户连接。
+               存储结构：
+               假设有3个用户都在观看 pictureId=1 的图片
+               那么在Map中就是：1 -> [sessionA, sessionB, sessionC]
+               同一个pictureId对应一个包含多个session的Set(共享锁读锁)*/
     // 保存所有连接的会话，key: pictureId, value: 用户会话集合，不会重复。
     private final Map<Long, Set<WebSocketSession>> pictureSessions = new ConcurrentHashMap<>();
 
@@ -118,6 +137,7 @@ public class PictureEditHandler extends TextWebSocketHandler {
         }
         // 如果已经有用户在编辑了，那么就将该用户广播给请求进行编辑的用户
         // 通知其它用户
+        ObjectMapper objectMapper = new ObjectMapper();
         PictureEditResponseMessage pictureEditResponseMessage = new PictureEditResponseMessage();
         // 已经有用户在编辑，获取当前编辑用户ID
         Long editingUserId = pictureEditingUsers.get(pictureId);
@@ -135,28 +155,29 @@ public class PictureEditHandler extends TextWebSocketHandler {
     }
 
     /**
-     * 处理编辑操作
+     * 处理编辑动作消息
      *
-     * @param pictureEditRequestMessage
-     * @param session
-     * @param user
-     * @param pictureId
+     * @param pictureEditRequestMessage 图片编辑请求消息，包含编辑动作等信息
+     * @param session WebSocket会话，用于通信
+     * @param user 当前操作用户
+     * @param pictureId 被编辑的图片ID
+     * @throws Exception 处理过程中可能抛出的异常
      */
-    public void handleEditActionMessage(PictureEditRequestMessage pictureEditRequestMessage, WebSocketSession session, User user, Long pictureId) throws IOException {
-        // 正在编辑的用户
+    public void handleEditActionMessage(PictureEditRequestMessage pictureEditRequestMessage, WebSocketSession session, User user, Long pictureId) throws Exception {
+        //获取当前图片的编辑者，从编辑该图片的用户集合中获取，使用currenHashmap避免冲突
         Long editingUserId = pictureEditingUsers.get(pictureId);
+        //获取编辑动作
         String editAction = pictureEditRequestMessage.getEditAction();
         PictureEditActionEnum actionEnum = PictureEditActionEnum.getEnumByValue(editAction);
         if (actionEnum == null) {
-            log.error("无效的编辑动作");
             return;
         }
-        // 确认是当前的编辑者
+        // 确认是当前编辑者
         if (editingUserId != null && editingUserId.equals(user.getId())) {
-            // 构造响应，发送具体操作的通知
+            // 构造响应信息后广播发送
             PictureEditResponseMessage pictureEditResponseMessage = new PictureEditResponseMessage();
             pictureEditResponseMessage.setType(PictureEditMessageTypeEnum.EDIT_ACTION.getValue());
-            String message = String.format("%s 执行 %s", user.getUserName(), actionEnum.getText());
+            String message = String.format("%s执行%s", user.getUserName(), actionEnum.getText());
             pictureEditResponseMessage.setMessage(message);
             pictureEditResponseMessage.setEditAction(editAction);
             pictureEditResponseMessage.setUser(userService.getUserVO(user));
@@ -165,14 +186,14 @@ public class PictureEditHandler extends TextWebSocketHandler {
         }
     }
 
-
     /**
-     * 退出编辑状态
+     * 处理退出编辑图片的消息
      *
-     * @param pictureEditRequestMessage
-     * @param session
-     * @param user
-     * @param pictureId
+     * @param pictureEditRequestMessage 图片编辑请求消息
+     * @param session WebSocket会话
+     * @param user 当前操作用户
+     * @param pictureId 图片ID
+     * @throws Exception 处理过程中可能抛出的异常
      */
     public void handleExitEditMessage(PictureEditRequestMessage pictureEditRequestMessage, WebSocketSession session, User user, Long pictureId) throws IOException {
         // 正在编辑的用户
@@ -188,6 +209,41 @@ public class PictureEditHandler extends TextWebSocketHandler {
             pictureEditResponseMessage.setMessage(message);
             pictureEditResponseMessage.setUser(userService.getUserVO(user));
             broadcastToPicture(pictureId, pictureEditResponseMessage);
+        }
+    }
+
+    /**
+     * 处理获取当前编辑状态的消息
+     * //t
+     * 该方法用于查询指定图片当前被哪个用户编辑，并将该用户的信息返回给请求者。
+     * 主要处理WebSocket会话中的图片编辑状态查询请求。
+     * //r//n
+     * @param pictureEditRequestMessage 图片编辑请求消息，包含请求的具体信息
+     * @param session WebSocket会话，用于与客户端进行通信
+     * @param user 当前请求用户信息
+     * @param pictureId 要查询的图片ID
+     * @throws IOException 当发送消息过程中发生I/O错误时抛出
+     */
+    public void handleGetCurrentEditStatusMessage(PictureEditRequestMessage pictureEditRequestMessage,
+                                                  WebSocketSession session, User user, Long pictureId) throws IOException {
+        // 获取当前正在编辑该图片的用户ID
+        Long editingUserId = pictureEditingUsers.get(pictureId);
+        User editUser = userService.getById(editingUserId);
+        // 构造响应消息
+        PictureEditResponseMessage pictureEditResponseMessage = new PictureEditResponseMessage();
+        pictureEditResponseMessage.setType(PictureEditMessageTypeEnum.CURRENT_EDIT_STATUS.getValue());
+        pictureEditResponseMessage.setUser(userService.getUserVO(editUser));
+        // 发送响应给请求者
+        ObjectMapper objectMapper = new ObjectMapper();
+        // 配置序列化：将 Long 类型转为 String，解决丢失精度问题
+        SimpleModule simpleModule = new SimpleModule();
+        simpleModule.addSerializer(Long.class, ToStringSerializer.instance);
+        simpleModule.addSerializer(Long.TYPE, ToStringSerializer.instance);
+        objectMapper.registerModule(simpleModule);
+
+        String s = objectMapper.writeValueAsString(pictureEditResponseMessage);
+        if (session.isOpen()){
+            session.sendMessage(new TextMessage(s));
         }
     }
 
@@ -225,13 +281,16 @@ public class PictureEditHandler extends TextWebSocketHandler {
 
     /**
      * 广播给该图片的所有用户（支持排除掉某个 Session）
-     *
-     * @param pictureId
-     * @param pictureEditResponseMessage
-     * @param excludeSession
+     * 该方法用于向所有正在查看指定图片的用户发送编辑响应消息，可以排除特定会话
+     * @param pictureId 图片ID，用于定位对应的用户会话集合
+     * @param pictureEditResponseMessage 要发送的图片编辑响应消息对象
+     * @param excludeSession 需要排除的WebSocket会话，如果为null则不排除任何会话
+     * @throws Exception 可能抛出的异常，如消息序列化或发送异常
      */
     private void broadcastToPicture(Long pictureId, PictureEditResponseMessage pictureEditResponseMessage, WebSocketSession excludeSession) throws IOException {
+        // 根据pictureId获取所有相关的WebSocket会话集合
         Set<WebSocketSession> sessionSet = pictureSessions.get(pictureId);
+        // 检查会话集合是否为空
         if (CollUtil.isNotEmpty(sessionSet)) {
             // 创建 ObjectMapper
             ObjectMapper objectMapper = new ObjectMapper();

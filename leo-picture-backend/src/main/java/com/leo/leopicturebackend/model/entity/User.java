@@ -80,7 +80,7 @@ public class User implements Serializable {
      */
     private Date updateTime;
     /**
-     * 手机号吗
+     * 手机号码
      */
     private String phone;
     /**

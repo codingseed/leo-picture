@@ -3,8 +3,10 @@ package com.leo.leopicturebackend.ai.tools;
 import cn.hutool.json.JSONObject;
 import cn.hutool.json.JSONUtil;
 import com.google.gson.Gson;
+import com.leo.leopicturebackend.ai.tool.AiRequestContext;
 import com.leo.leopicturebackend.common.ResultUtils;
 import com.leo.leopicturebackend.exception.ErrorCode;
+import com.leo.leopicturebackend.model.entity.User;
 import dev.langchain4j.agent.tool.P;
 import dev.langchain4j.agent.tool.Tool;
 import jakarta.annotation.Resource;
@@ -19,11 +21,12 @@ import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 
-/*
-*实际工作流程
-工具调用的本质 并不是 AI 服务器自己调用这些工具、也不是把工具的代码发送给 AI 服务器让它执行，
-* 它只能提出要求，表示 “我需要执行 XX 工具完成任务”。
-* 而真正执行工具的是我们自己的应用程序，执行后再把结果告诉 AI，让它继续工作。*/
+/**
+ * 实际工作流程
+ * 工具调用的本质 并不是 AI 服务器自己调用这些工具、也不是把工具的代码发送给 AI 服务器让它执行，
+ * 它只能提出要求，表示 “我需要执行 XX 工具完成任务”。
+ * 而真正执行工具的是我们自己的应用程序，执行后再把结果告诉 AI，让它继续工作。
+ */
 @Slf4j
 @Component
 public class ImageGenerationTool {
@@ -31,10 +34,16 @@ public class ImageGenerationTool {
     @Value("${aliYunAi.apiKey}")
     private String apiKey;
 
-    private static final String IMAGE_GENERATION_URL = "https://dashscope.aliyuncs.com/api/v1/services/aigc/text2image/image-synthesis";
-
     @Resource
-    private Gson gson;
+    private AILimiterService limiterService;
+    // 创建TTL安全的线程池
+    // 使用静态初始化确保TTL线程池正确创建
+    // 使用正确的API端点URL
+    String IMAGE_GENERATION_URL = "https://dashscope.aliyuncs.com/api/v1/services/aigc/multimodal-generation/generation";
+
+//    @Resource
+//    private Gson gson;
+
     /**
      * 根据文本描述生成图片
      *
@@ -48,10 +57,37 @@ public class ImageGenerationTool {
 返回一个任务ID用于获取生成结果。
 """)
     public String generateImages(@P("详细的中文图像描述，如'一幅水墨风格的山水画，有远山、流水和小桥'") String prompt) {
+        log.info("AI调用图片生成工具，接收到的参数 - prompt: {}", prompt);
+
+        // 使用TransmittableThreadLocal获取用户信息
+        User loginUser = AiRequestContext.getCurrentUser();
+
+        if (loginUser == null) {
+            log.error("无法获取用户信息，TransmittableThreadLocal上下文丢失");
+            return "系统错误：无法识别用户身份，请稍后重试";
+        }
+
+        log.info("用户 {} 生成图片，描述: {}", loginUser.getUserAccount(), prompt);
+
+        // 频率限制检查
+        if (!limiterService.tryAcquire(String.valueOf(loginUser.getId())).isAllowed()) {
+            log.info("用户 {} 生成图片次数已达上限", loginUser.getUserAccount());
+            return "您今天生成图片的次数已达上限（每天5次，每分钟不超过2次），请明天再试。";
+        }
+        return generateImageWithUser(prompt);
+    }
+
+    /**
+     * 实际生成图片的方法
+     * @param prompt 图像描述
+     * @return 生成结果
+     */
+    private String generateImageWithUser(String prompt) {
         try {
             log.info("Generating image with prompt: {}", prompt);
 
             // 构建符合API要求的请求体
+            // model备选：首选qwen-image-plus。wan2.2-t2i-plus、wan2.2-t2i-flash、wan2.2-t2i-flash。低成本：wanx2.0-t2i-turbo
             String requestBody = String.format("""
         {
             "model": "qwen-image-plus",
@@ -77,9 +113,6 @@ public class ImageGenerationTool {
         """, prompt.replace("\"", "\\\""));
 
             log.debug("Request body: {}", requestBody);
-
-            // 使用正确的API端点URL
-            String IMAGE_GENERATION_URL = "https://dashscope.aliyuncs.com/api/v1/services/aigc/multimodal-generation/generation";
 
             // 创建 HTTP 客户端
             HttpClient client = HttpClient.newBuilder()
@@ -125,5 +158,4 @@ public class ImageGenerationTool {
             return "图片生成异常: " + e.getMessage();
         }
     }
-
 }

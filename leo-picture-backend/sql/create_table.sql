@@ -127,3 +127,8 @@ create table if not exists space_user
 #     ADD COLUMN vipExpireTime datetime NULL COMMENT '会员过期时间',
 #     ADD COLUMN vipCode varchar(128) NULL COMMENT '会员兑换码',
 #     ADD COLUMN vipNumber bigint NULL COMMENT '会员编号';
+
+# ALTER TABLE user
+#     ADD COLUMN phone varchar(20) NULL COMMENT '手机号码';
+# -- 创建索引
+# CREATE INDEX idx_phone ON user (phone);

@@ -269,7 +269,7 @@ public class PictureController {
      * newScheduledThreadPool线程池5秒后再删一次
      * 可结合互斥锁防止缓存击穿（多个并发请求同时查库）
      */
-    @Deprecated
+//    @Deprecated
     @PostMapping("/list/page/vo/cache")
     public BaseResponse<Page<PictureVO>> listPictureVOByPageWithCache(@RequestBody PictureQueryRequest pictureQueryRequest,
                                                              HttpServletRequest request) {

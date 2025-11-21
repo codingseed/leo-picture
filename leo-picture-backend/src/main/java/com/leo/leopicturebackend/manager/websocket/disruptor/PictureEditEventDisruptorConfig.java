@@ -26,7 +26,7 @@ public class PictureEditEventDisruptorConfig {
                 bufferSize,
                 ThreadFactoryBuilder.create().setNamePrefix("pictureEditEventDisruptor").build()
         );
-        // 设置消费者
+        // 设置消费者，使用 WorkerPool 模式处理事件，线程绑定机制保证消息的顺序和一致性
         disruptor.handleEventsWithWorkerPool(pictureEditEventWorkHandler);
         // 启动 disruptor
         disruptor.start();

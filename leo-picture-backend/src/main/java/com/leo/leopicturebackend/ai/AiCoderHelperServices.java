@@ -31,11 +31,11 @@ public interface AiCoderHelperServices {
     @SystemMessage(fromResource = "system-prompt.txt")
     Flux <String> chatStream(@MemoryId int memoryId, @UserMessage String UserMessage);
 
-    /**
-     * 生成图片的方法
-     * @param prompt 图片描述
-     * @return 生成结果
-     */
-    @SystemMessage("你是一个AI助手，可以根据用户的需求生成图片。当用户需要生成图片时，请使用图像生成工具。")
-    Result<String> generateImage(@UserMessage String prompt);
+//    /**
+//     * 生成图片的方法
+//     * @param prompt 图片描述
+//     * @return 生成结果
+//     */
+//    @SystemMessage("你是一个AI助手，可以根据用户的需求生成图片。当用户需要生成图片时，请使用图像生成工具。")
+//    Result<String> generateImage(@UserMessage String prompt);
 }

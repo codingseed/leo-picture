@@ -1,8 +1,11 @@
 package com.leo.leopicturebackend.controller;
 
 import com.leo.leopicturebackend.ai.AiCoderHelperServices;
+import com.leo.leopicturebackend.service.AiService;
 import jakarta.annotation.Resource;
+import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.MediaType;
 import org.springframework.http.codec.ServerSentEvent;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -20,38 +23,27 @@ import java.util.regex.Pattern;
 public class AiController {
 
     @Resource
-    private AiCoderHelperServices aiCoderHelperServices;
+    private AiService aiService;
 
-    @GetMapping("/chat")
-    public Flux<ServerSentEvent<String>> chatStream(int memoryId, @RequestParam("message") String UserMessage){
-        return aiCoderHelperServices.chatStream(memoryId, UserMessage)
-                .map(chunk -> {
-                    // 检查是否为图片URL的Markdown格式
-                    String processedChunk = processImageUrl(chunk);
-                    return ServerSentEvent.<String>builder()
-                            .data(processedChunk)
-                            .build();
-                });
+    /**
+     * AI聊天流接口
+     *
+     * @param memoryId 内存ID
+     * @param userMessage 用户消息
+     * @param request HTTP请求
+     * @return ServerSentEvent流
+     */
+    @GetMapping(value = "/chat", produces = MediaType.TEXT_EVENT_STREAM_VALUE + ";charset=UTF-8")
+    public Flux<ServerSentEvent<String>> chatStream(
+            @RequestParam(required = false, defaultValue = "1") int memoryId,
+            @RequestParam("message") String userMessage,
+            HttpServletRequest request) {
+
+        log.info("收到AI聊天请求, memoryId: {}, message: {}", memoryId, userMessage);
+
+        return aiService.chatStream(memoryId, userMessage, request)
+                .doOnSubscribe(subscription -> log.info("SSE连接建立"))
+                .doOnComplete(() -> log.info("SSE流完成"))
+                .doOnError(error -> log.error("SSE流错误", error));
     }
-
-    private String processImageUrl(String content) {
-        // 更宽松的图片URL匹配，支持带查询参数的URL
-        Pattern pattern = Pattern.compile("(https?://[^\\s]+\\.(png|jpg|jpeg|gif|webp)(?:\\?[^\\s]*)?)");
-        Matcher matcher = pattern.matcher(content);
-
-        // 或者更宽松的版本，匹配任何包含图片扩展名的URL
-        Pattern pattern2 = Pattern.compile("(https?://[^\\s]*\\.(png|jpg|jpeg|gif|webp)[^\\s]*)");
-        Matcher matcher2 = pattern2.matcher(content);
-
-        if (matcher.find()) {
-            String imageUrl = matcher.group(1);
-            return "[IMAGE_URL]" + imageUrl;
-        } else if (matcher2.find()) {
-            String imageUrl = matcher2.group(1);
-            return "[IMAGE_URL]" + imageUrl;
-        }
-        return content;
-    }
-
-
 }
