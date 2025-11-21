@@ -20,7 +20,7 @@ import com.leo.leopicturebackend.service.SpaceService;
 import com.leo.leopicturebackend.service.UserService;
 import org.springframework.stereotype.Service;
 
-import javax.annotation.Resource;
+import jakarta.annotation.Resource;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;

@@ -15,7 +15,7 @@ import com.leo.leopicturebackend.service.SpaceUserService;
 import com.leo.leopicturebackend.service.UserService;
 import org.springframework.stereotype.Component;
 
-import javax.annotation.Resource;
+import jakarta.annotation.Resource;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;

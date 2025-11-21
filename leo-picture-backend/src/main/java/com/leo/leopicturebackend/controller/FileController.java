@@ -10,13 +10,13 @@ import com.leo.leopicturebackend.constant.UserConstant;
 import com.leo.leopicturebackend.exception.BusinessException;
 import com.leo.leopicturebackend.exception.ErrorCode;
 import com.leo.leopicturebackend.manager.CosManager;
-import io.swagger.annotations.Tag;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
-import javax.annotation.Resource;
-import javax.servlet.http.HttpServletResponse;
+import jakarta.annotation.Resource;
+import jakarta.servlet.http.HttpServletResponse;
 import java.io.File;
 import java.io.IOException;
 

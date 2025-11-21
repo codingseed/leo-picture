@@ -12,6 +12,7 @@ import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.leo.leopicturebackend.api.aliyunai.AliYunAiApi;
 import com.leo.leopicturebackend.api.aliyunai.model.CreateOutPaintingTaskRequest;
 import com.leo.leopicturebackend.api.aliyunai.model.CreateOutPaintingTaskResponse;
+import com.leo.leopicturebackend.config.RabbitConfig;
 import com.leo.leopicturebackend.exception.BusinessException;
 import com.leo.leopicturebackend.exception.ErrorCode;
 import com.leo.leopicturebackend.exception.ThrowUtils;
@@ -39,6 +40,7 @@ import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
 import org.jsoup.select.Elements;
+import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -47,9 +49,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionTemplate;
 
-import javax.annotation.PreDestroy;
-import javax.annotation.Resource;
-import javax.servlet.http.HttpServletRequest;
+import jakarta.annotation.PreDestroy;
+import jakarta.annotation.Resource;
+import jakarta.servlet.http.HttpServletRequest;
 import java.awt.*;
 import java.io.IOException;
 import java.util.*;
@@ -97,6 +99,8 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
     private StringRedisTemplate stringRedisTemplate;
     @Resource
     private RateLimiterManager rateLimiterManager;
+    @Resource
+    private RabbitTemplate rabbitTemplate;
 
 
     // 最大图像大小：10MB（字节）
@@ -679,6 +683,12 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
             }
             return true;
         });
+        Map<String, Object> message = new HashMap<>();
+        message.put("pictureId", pictureId);
+        message.put("operation", "delete");
+        rabbitTemplate.convertAndSend(RabbitConfig.PICTURE_UPDATE_EXCHANGE,
+                RabbitConfig.PICTURE_UPDATE_ROUTING_KEY,message);
+
         // 上传完成后清理redis缓存
         this.clearPageCache();
         // 异步清理文件
@@ -707,6 +717,11 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
         // 操作数据库
         boolean result = this.updateById(picture);
         ThrowUtils.throwIf(!result, ErrorCode.OPERATION_ERROR);
+        Map<String, Object> message = new HashMap<>();
+        message.put("pictureId", picture.getId());
+        message.put("operation", "update");
+        rabbitTemplate.convertAndSend(RabbitConfig.PICTURE_REVIEW_EXCHANGE,
+                RabbitConfig.PICTURE_REVIEW_ROUTING_KEY, message);
         // 更新完成后清理redis缓存
         this.clearPageCache();
     }

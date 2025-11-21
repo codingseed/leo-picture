@@ -23,14 +23,16 @@ import com.leo.leopicturebackend.model.vo.UserVO;
 import com.leo.leopicturebackend.service.SpaceService;
 import com.leo.leopicturebackend.service.SpaceUserService;
 import com.leo.leopicturebackend.service.UserService;
+import org.redisson.api.RLock;
+import org.redisson.api.RedissonClient;
 import org.springframework.beans.BeanUtils;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionTemplate;
 import com.leo.leopicturebackend.model.entity.Space;
 
-import javax.annotation.Resource;
-import javax.servlet.http.HttpServletRequest;
+import jakarta.annotation.Resource;
+import jakarta.servlet.http.HttpServletRequest;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;

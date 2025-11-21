@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.leo.leopicturebackend.mapper.AiUsageMapper">
+
+    <select id="selectByUserIdAndDate" resultType="com.leo.leopicturebackend.model.entity.AiImageUsage">
+        SELECT * FROM ai_image_usage
+        WHERE user_id = #{userId} AND usage_date = #{usageDate}
+    </select>
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO ai_image_usage (user_id, usage_date, usage_count, max_daily_limit)
+        VALUES (#{userId}, #{usageDate}, #{usageCount}, #{maxDailyLimit})
+    </insert>
+
+    <update id="incrementUsageCount">
+        UPDATE ai_image_usage
+        SET usage_count = usage_count + 1, updated_time = CURRENT_TIMESTAMP
+        WHERE id = #{id} AND usage_count &lt; max_daily_limit
+    </update>
+
+</mapper>

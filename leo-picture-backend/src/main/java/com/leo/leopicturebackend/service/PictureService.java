@@ -10,7 +10,7 @@ import com.leo.leopicturebackend.model.entity.User;
 import com.leo.leopicturebackend.model.vo.PictureVO;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.web.multipart.MultipartFile;
-import javax.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletRequest;
 import java.util.List;
 
 

@@ -7,7 +7,7 @@ import com.leo.leopicturebackend.model.dto.spaceuser.SpaceUserQueryRequest;
 import com.leo.leopicturebackend.model.entity.SpaceUser;
 import com.leo.leopicturebackend.model.vo.SpaceUserVO;
 
-import javax.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletRequest;
 import java.util.List;
 
 /**

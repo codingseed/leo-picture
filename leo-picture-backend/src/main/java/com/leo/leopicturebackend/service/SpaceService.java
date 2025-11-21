@@ -9,7 +9,7 @@ import com.leo.leopicturebackend.model.entity.User;
 import com.leo.leopicturebackend.model.vo.SpaceVO;
 import com.leo.leopicturebackend.model.entity.Space;
 
-import javax.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletRequest;
 
 
 /**

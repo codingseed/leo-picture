@@ -28,70 +28,37 @@ public class FilePictureUpload extends PictureUploadTemplate {
     );
 
     @Override
-    protected void validPicture(Object inputSource) {
+    protected String validPicture(Object inputSource) {
         MultipartFile multipartFile = (MultipartFile) inputSource;
-
-        // 1. 校验文件是否为空
-        if (multipartFile == null || multipartFile.isEmpty()) {
-            throw new BusinessException(ErrorCode.PARAMS_ERROR, "上传文件不能为空");
-        }
-
-        // 2. 校验文件大小
+        ThrowUtils.throwIf(multipartFile == null, ErrorCode.PARAMS_ERROR, "文件不能为空");
+        // 1. 校验文件大小
         long fileSize = multipartFile.getSize();
-        if (fileSize > MAX_FILE_SIZE) {
-            throw new BusinessException(ErrorCode.PARAMS_ERROR,
-                    String.format("上传文件大小不能超过%dMB", MAX_FILE_SIZE / (1024 * 1024)));
-        }
-
-        // 3. 校验文件后缀
-        String originalFilename = multipartFile.getOriginalFilename();
-        if (StrUtil.isBlank(originalFilename)) {
-            throw new BusinessException(ErrorCode.PARAMS_ERROR, "文件名不能为空");
-        }
-
-        String suffix = FileUtil.getSuffix(originalFilename);
-        if (StrUtil.isBlank(suffix)) {
-            throw new BusinessException(ErrorCode.PARAMS_ERROR, "无法识别文件类型");
-        }
-
-        if (!ALLOWED_SUFFIXES.contains(suffix.toLowerCase())) {
-            throw new BusinessException(ErrorCode.PARAMS_ERROR,
-                    "不支持的文件格式，仅支持: " + String.join(", ", ALLOWED_SUFFIXES));
-        }
+        final long ONE_M = 1024 * 1024L;
+        ThrowUtils.throwIf(fileSize > 2 * ONE_M, ErrorCode.PARAMS_ERROR, "文件大小不能超过 2M");
+        // 2. 校验文件后缀
+//        String fileSuffix = FileUtil.getSuffix(multipartFile.getOriginalFilename());
+        String fileSuffix = getSuffixFromContentType(Objects.requireNonNull(multipartFile.getContentType()));
+        // 允许上传的文件后缀
+        final List<String> ALLOW_FORMAT_LIST = Arrays.asList("jpeg", "jpg", "png", "webp");
+        ThrowUtils.throwIf(!ALLOW_FORMAT_LIST.contains(fileSuffix), ErrorCode.PARAMS_ERROR, "文件类型错误");
+        return fileSuffix;
     }
 
-//    @Override
-//    protected String validPicture(Object inputSource) {
-//        MultipartFile multipartFile = (MultipartFile) inputSource;
-//        ThrowUtils.throwIf(multipartFile == null, ErrorCode.PARAMS_ERROR, "文件不能为空");
-//        // 1. 校验文件大小
-//        long fileSize = multipartFile.getSize();
-//        final long ONE_M = 1024 * 1024L;
-//        ThrowUtils.throwIf(fileSize > 2 * ONE_M, ErrorCode.PARAMS_ERROR, "文件大小不能超过 2M");
-//        // 2. 校验文件后缀
-////        String fileSuffix = FileUtil.getSuffix(multipartFile.getOriginalFilename());
-//        String fileSuffix = getSuffixFromContentType(Objects.requireNonNull(multipartFile.getContentType()));
-//        // 允许上传的文件后缀
-//        final List<String> ALLOW_FORMAT_LIST = Arrays.asList("jpeg", "jpg", "png", "webp");
-//        ThrowUtils.throwIf(!ALLOW_FORMAT_LIST.contains(fileSuffix), ErrorCode.PARAMS_ERROR, "文件类型错误");
-//        return fileSuffix;
-//    }
-//
-//    private String getSuffixFromContentType(String contentType) {
-//
-//        switch(contentType) {
-//            case "image/jpeg":
-//                return "jpeg";
-//            case "image/png":
-//                return "png";
-//            case "image/webp":
-//                return "webp";
-//            case "image/jpg":
-//                return "jpg";
-//            default:
-//                return "";
-//        }
-//    }
+    private String getSuffixFromContentType(String contentType) {
+
+        switch(contentType) {
+            case "image/jpeg":
+                return "jpeg";
+            case "image/png":
+                return "png";
+            case "image/webp":
+                return "webp";
+            case "image/jpg":
+                return "jpg";
+            default:
+                return "";
+        }
+    }
 
     @Override
     protected String getOriginFilename(Object inputSource) {
