@@ -22,6 +22,7 @@ import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 
 /**
+ * Langchain4j内部使用ExecutorService线程池
  * 实际工作流程
  * 工具调用的本质 并不是 AI 服务器自己调用这些工具、也不是把工具的代码发送给 AI 服务器让它执行，
  * 它只能提出要求，表示 “我需要执行 XX 工具完成任务”。
@@ -56,25 +57,32 @@ public class ImageGenerationTool {
 输入应该是详细的中文描述，包含场景、风格、颜色等细节。
 返回一个任务ID用于获取生成结果。
 """)
-    public String generateImages(@P("详细的中文图像描述，如'一幅水墨风格的山水画，有远山、流水和小桥'") String prompt) {
+    public String generateImages(@P("详细的中文图像描述，如'一幅水墨风格的山水画，有远山、流水和小桥'") String prompt,
+                                 @P("用户ID，用于频率限制和身份验证") String userId,@P("用户账号，用于日志记录") String userAccount) {
         log.info("AI调用图片生成工具，接收到的参数 - prompt: {}", prompt);
 
-        // 使用TransmittableThreadLocal获取用户信息
-        User loginUser = AiRequestContext.getCurrentUser();
+        // 使用TTL安全的异步执行
+        try {
+            // ← 线程池线程读取
+//            // 使用TransmittableThreadLocal获取用户信息
+//            final User currentUser = AiRequestContext.getCurrentUser();
+//            if (currentUser == null) {
+//                log.error("未获取到用户上下文");
+//                return "系统错误：请重新登录";
+//            }
 
-        if (loginUser == null) {
-            log.error("无法获取用户信息，TransmittableThreadLocal上下文丢失");
-            return "系统错误：无法识别用户身份，请稍后重试";
+            // 直接传递用户ID，不依赖TTL
+            log.info("📝 直接处理 - 用户ID: {}, 账号: {}", userId, userAccount);
+            // 频率限制检查
+            // 直接在主线程进行频率检查
+            if (!limiterService.tryAcquire(String.valueOf(userId)).isAllowed()) {
+                return "您今天生成图片的次数已达上限（每天5次，每分钟不超过2次），请明天再试。";
+            }
+            return generateImageWithUser(prompt);
+        } catch (Exception e) {
+            log.error("工具执行异常", e);
+            return "图片生成服务暂时不可用，请稍后重试";
         }
-
-        log.info("用户 {} 生成图片，描述: {}", loginUser.getUserAccount(), prompt);
-
-        // 频率限制检查
-        if (!limiterService.tryAcquire(String.valueOf(loginUser.getId())).isAllowed()) {
-            log.info("用户 {} 生成图片次数已达上限", loginUser.getUserAccount());
-            return "您今天生成图片的次数已达上限（每天5次，每分钟不超过2次），请明天再试。";
-        }
-        return generateImageWithUser(prompt);
     }
 
     /**

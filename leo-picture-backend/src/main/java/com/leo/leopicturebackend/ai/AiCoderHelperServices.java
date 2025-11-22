@@ -12,24 +12,29 @@ import java.util.List;
 
 @InputGuardrails(SafeInputGuardrail.class)
 public interface AiCoderHelperServices {
-
-
-    @SystemMessage(fromResource = "system-prompt.txt")
-    String chat(@MemoryId int memoryId, @UserMessage String UserMessage);
-
-    //SystemMessage系统预设，结合本地文档，设置初始提示语
-    @SystemMessage(fromResource = "system-prompt.txt")
-    Record chatForRecord(@UserMessage String UserMessage);
-
-    //学习报告
-    record Record(String name, List<String> suggestionlist){}
-
-    @SystemMessage(fromResource = "system-prompt.txt")
-    Result<String> ChatWithRag(String UserMessage);
+//    @SystemMessage(fromResource = "system-prompt.txt")
+//    String chat(@MemoryId int memoryId, @UserMessage String UserMessage);
+//
+//    //SystemMessage系统预设，结合本地文档，设置初始提示语
+//    @SystemMessage(fromResource = "system-prompt.txt")
+//    Record chatForRecord(@UserMessage String UserMessage);
+//
+//    //学习报告
+//    record Record(String name, List<String> suggestionlist){}
+//
+//    @SystemMessage(fromResource = "system-prompt.txt")
+//    Result<String> ChatWithRag(String UserMessage);
 
     //MemoryId用来会话隔离，不同的ID会话会话记录不同
     @SystemMessage(fromResource = "system-prompt.txt")
     Flux <String> chatStream(@MemoryId int memoryId, @UserMessage String UserMessage);
+    @SystemMessage("""
+        当前用户信息：
+        - 用户ID: {{userId}}
+        - 用户账号: {{userAccount}}
+        请在调用工具时传递这些用户信息。
+        """)
+    Flux<String> chatStream(@MemoryId int memoryId, @UserMessage String UserMessage, @V("userId") String userId, @V("userAccount") String userAccount);
 
 //    /**
 //     * 生成图片的方法

@@ -33,13 +33,6 @@ public class AiServiceImpl implements AiService {
     @Autowired
     private AiCoderHelperServices aiCoderHelperServices;
 
-// doOnSubscribe：在流订阅时立即执行，在主线程设置 TTL
-// TTL 包装：由于订阅发生在主线程，TTL 能正确捕获上下文
-// 线程切换安全：即使 LangChain4J 切换到其他线程，TTL 也能传递上下文
-// 自动清理：doOnTerminate 确保上下文不会泄漏
-// Reactor Context 是响应式流内部的上下文存储
-// 在流的整个生命周期中自动传递，不受线程切换影响
-// 这是最可靠的传递机制
     @Override
     public Flux<ServerSentEvent<String>> chatStream(int memoryId, String userMessage, HttpServletRequest request) {
         // 1. 获取当前登录用户
@@ -55,33 +48,15 @@ public class AiServiceImpl implements AiService {
 
                 log.info("用户已登录，用户ID: {}, 用户账号: {}", loginUser.getId(), loginUser.getUserAccount());
 
-                // 使用 Reactor Context 传递用户信息
-                return aiCoderHelperServices.chatStream(memoryId, userMessage)
-                        // 设置 Reactor Context：在响应式流的整个处理链中自动传递
-                        .contextWrite(reactor.util.context.Context.of("currentUser", loginUser))
-                        .map(chunk -> {
-                            // 可以从 context 中获取用户信息
-                            User contextUser = AiRequestContext.getCurrentUser();
-                            if (contextUser == null) {
-//                                优雅降级：即使一层失效，另一层仍能工作
-                                log.warn("TTL上下文丢失，但Reactor Context正常工作");
-                            }
-                            return ServerSentEvent.<String>builder()
-                                    .data(processImageUrl(chunk))
-                                    .build();
-                        })
-                        .doOnSubscribe(subscription -> {
-                            // 设置TTL上下文
-                            AiRequestContext.setCurrentUser(loginUser);
-                        })
-                        .doOnTerminate(() -> {
-                            // 清理TTL上下文
-                            AiRequestContext.clear();
-                        })
-                        .doOnError(error -> {
-                            log.error("AI流处理错误", error);
-                            AiRequestContext.clear();
-                        });
+                // ✅ 直接传递用户信息，无需TTL
+                return aiCoderHelperServices.chatStream(memoryId, userMessage,
+                                String.valueOf(loginUser.getId()), loginUser.getUserAccount())
+                        .timeout(Duration.ofSeconds(30))
+                        .map(chunk -> ServerSentEvent.<String>builder()
+                                .data(processImageUrl(chunk))
+                                .build())
+                        .retry(2)
+                        .doOnError(error -> log.error("AI流处理错误", error));
 
             } catch (Exception e) {
                 log.error("AI聊天流处理异常", e);
@@ -91,19 +66,7 @@ public class AiServiceImpl implements AiService {
             }
         });
     }
-    /*线程安全：Reactor Context 天生支持跨线程传递
-双重保险：TTL + Reactor Context 确保万无一失
-资源管理：自动清理，防止内存泄漏
-优雅降级：即使一层失效，另一层仍能工作
 
-Reactor 核心概念总结
-概念	作用	在你的代码中的体现
-Flux	        异步流	    SSE 流式响应
-defer()	        延迟执行	    按需执行用户认证
-contextWrite()	设置上下文	传递用户信息
-doOnSubscribe	订阅回调	    设置 TTL
-doOnTerminate	结束回调	    清理 TTL
-    * */
     // 处理图片 URL 的方法
     private String processImageUrl(String text) {
         // 匹配图片URL的Markdown格式 ![image](url)
