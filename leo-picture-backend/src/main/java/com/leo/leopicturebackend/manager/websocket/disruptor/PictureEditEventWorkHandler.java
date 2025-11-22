@@ -17,6 +17,7 @@ import jakarta.annotation.Resource;
 
 /**
  * 图片编辑事件处理器（消费者）
+ * 将不同类型的消息分发到对应的处理器中。
  */
 @Component
 @Slf4j

@@ -19,24 +19,24 @@ class LeoPictureBackendApplicationTests {
     void contextLoads() {
     }
 
-    @Test
-    void TestWithMcp() {
-        try {
-            String userMessage = "能为我生成一张图片吗，随机图片就行，我在测试阿里云的百炼生成图片的MCP";
-            Result<String> result = aiCoderHelperServices.ChatWithRag(userMessage);
-            System.out.println(result);
-        } catch (Exception e) {
-            System.err.println("MCP图片生成测试失败: " + e.getMessage());
-            e.printStackTrace();
-        }
-    }
+//    @Test
+//    void TestWithMcp() {
+//        try {
+//            String userMessage = "能为我生成一张图片吗，随机图片就行，我在测试阿里云的百炼生成图片的MCP";
+//            Result<String> result = aiCoderHelperServices.ChatWithRag(userMessage);
+//            System.out.println(result);
+//        } catch (Exception e) {
+//            System.err.println("MCP图片生成测试失败: " + e.getMessage());
+//            e.printStackTrace();
+//        }
+//    }
 
-    // 修改测试方法，使用更明确的提示词
+    // 修改测试方法，移除HttpServletRequest参数
     @Test
     void TestAmapMcp() {
         try {
             Flux<String> result = aiCoderHelperServices
-                    .chatStream(123, "你好，你能使用图片生成工具为我创建一张山水风景图片吗？");
+                    .chatStream(123, "你好吗", "userId", "userAccount");
 
             // 收集所有结果
             List<String> results = result.collectList().block();

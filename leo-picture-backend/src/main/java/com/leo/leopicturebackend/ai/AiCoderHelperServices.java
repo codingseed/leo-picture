@@ -24,16 +24,12 @@ public interface AiCoderHelperServices {
 //
 //    @SystemMessage(fromResource = "system-prompt.txt")
 //    Result<String> ChatWithRag(String UserMessage);
+//
+//    //MemoryId用来会话隔离，不同的ID会话会话记录不同
+//    @SystemMessage(fromResource = "system-prompt.txt")
+//    Flux <String> chatStream(@MemoryId int memoryId, @UserMessage String UserMessage);
 
-    //MemoryId用来会话隔离，不同的ID会话会话记录不同
     @SystemMessage(fromResource = "system-prompt.txt")
-    Flux <String> chatStream(@MemoryId int memoryId, @UserMessage String UserMessage);
-    @SystemMessage("""
-        当前用户信息：
-        - 用户ID: {{userId}}
-        - 用户账号: {{userAccount}}
-        请在调用工具时传递这些用户信息。
-        """)
     Flux<String> chatStream(@MemoryId int memoryId, @UserMessage String UserMessage, @V("userId") String userId, @V("userAccount") String userAccount);
 
 //    /**

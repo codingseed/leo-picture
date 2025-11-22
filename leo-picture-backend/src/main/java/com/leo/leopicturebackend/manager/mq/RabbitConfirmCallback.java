@@ -6,10 +6,10 @@ import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.stereotype.Component;
 
 /*
-* 处理消息确认回调
-*
+处理消息确认回调
 当消息成功发送到 RabbitMQ Broker 时调用
-或者发送失败时也会调用（ack 参数为 false）*/
+或者发送失败时也会调用（ack 参数为 false）
+*/
 @Slf4j
 @Component
 public class RabbitConfirmCallback implements RabbitTemplate.ConfirmCallback {

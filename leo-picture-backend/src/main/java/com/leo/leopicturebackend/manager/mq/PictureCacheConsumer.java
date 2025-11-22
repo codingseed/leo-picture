@@ -58,7 +58,8 @@ public class PictureCacheConsumer {
         } catch (Exception e) {
             log.error("处理图片更新消息失败", e);
             try {
-                // 拒绝消息并重新入队
+                // 当达到最大重试次数后，消息会自动进入死信队列
+                // 这里我们拒绝消息，让它可以被重新排队（或进入死信队列）
                 channel.basicNack(deliveryTag, false, true);
             } catch (IOException ioException) {
                 log.error("消息拒绝失败", ioException);

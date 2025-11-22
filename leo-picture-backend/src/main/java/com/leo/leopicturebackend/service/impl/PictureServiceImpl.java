@@ -538,16 +538,16 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
         // 使用 CompletableFuture 并发处理图片上传
         List<CompletableFuture<Boolean>> uploadFutures = new ArrayList<>();
 
-        // 创建一个专用的线程池用于执行异步任务，避免与其他任务竞争
-        ThreadPoolExecutor batchUploadExecutor = new ThreadPoolExecutor(
-                10, 20, 5,
-                TimeUnit.SECONDS, new LinkedBlockingQueue<>(200),
-                r -> {
-                    Thread thread = new Thread(r, "batch-upload-thread-");
-                    thread.setDaemon(false);
-                    return thread;
-                },
-                new ThreadPoolExecutor.CallerRunsPolicy());
+//        // 创建一个专用的线程池用于执行异步任务，避免与其他任务竞争
+//        ThreadPoolExecutor batchUploadExecutor = new ThreadPoolExecutor(
+//                10, 20, 5,
+//                TimeUnit.SECONDS, new LinkedBlockingQueue<>(200),
+//                r -> {
+//                    Thread thread = new Thread(r, "batch-upload-thread-");
+//                    thread.setDaemon(false);
+//                    return thread;
+//                },
+//                new ThreadPoolExecutor.CallerRunsPolicy());
 
         //取一个最大值，count默认10
         int maxUploads = Math.min(count, imgElementList.size());
@@ -556,10 +556,10 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
         ScheduledExecutorService monitorExecutor = Executors.newSingleThreadScheduledExecutor();
         // 固定频率执行定时任务。(Runnable command(要执行的任务（Runnable), long initialDelay(首次执行的延迟时间), long period连续执行之间的时间间隔（周期), TimeUnit unit)
         monitorExecutor.scheduleAtFixedRate(() -> {
-                    int queueSize = batchUploadExecutor.getQueue().size();
-                    int activeCount = batchUploadExecutor.getActiveCount();
-                    long completedTaskCount = batchUploadExecutor.getCompletedTaskCount();
-                    if (queueSize > 20) {
+                    int queueSize = executorService.getQueue().size();
+                    int activeCount = executorService.getActiveCount();
+                    long completedTaskCount = executorService.getCompletedTaskCount();
+                    if (queueSize > 100) {
                         log.warn("图片上传队列堆积 | 队列大小: {}, 活跃线程数: {}, 已完成任务数: {}", queueSize, activeCount, completedTaskCount);
                     } else {
                         log.info("图片上传状态 | 队列大小: {}, 活跃线程数: {}, 已完成任务数: {}", queueSize, activeCount, completedTaskCount);
@@ -624,7 +624,7 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
                     }
                 }
                 return false;
-            }, batchUploadExecutor).exceptionally(          // 可对单个任务处理异常
+            }, executorService).exceptionally(          // 可对单个任务处理异常
                     throwable -> {
                         // 增强的异常处理
                         if (throwable.getCause() instanceof RejectedExecutionException) {
@@ -679,14 +679,14 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
             log.error("批量上传过程中发生异常", e);
         } finally {
             // 关闭线程池
-            batchUploadExecutor.shutdown();
+            executorService.shutdown();
             try {
                 // 等待线程池终止最多30秒
-                if (!batchUploadExecutor.awaitTermination(30, TimeUnit.SECONDS)) {
-                    batchUploadExecutor.shutdownNow();
+                if (!executorService.awaitTermination(30, TimeUnit.SECONDS)) {
+                    executorService.shutdownNow();
                 }
             } catch (InterruptedException e) {
-                batchUploadExecutor.shutdownNow();
+                executorService.shutdownNow();
             }
 
             // 关闭监控线程池
@@ -842,8 +842,18 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
         Map<String, Object> message = new HashMap<>();
         message.put("pictureId", pictureId);
         message.put("operation", "delete");
+        //convert将 Java 对象自动转换为 AMQP 消息,对象转换
+        //消息属性设置messagePostProcessor
         rabbitTemplate.convertAndSend(RabbitConfig.PICTURE_UPDATE_EXCHANGE,
-                RabbitConfig.PICTURE_UPDATE_ROUTING_KEY,message);
+                RabbitConfig.PICTURE_UPDATE_ROUTING_KEY,message
+/*                ,messagePostProcessor -> {
+                    // 确保消息持久化
+                    messagePostProcessor.getMessageProperties().setDeliveryMode(MessageDeliveryMode.PERSISTENT);
+                    // 设置消息ID便于追踪
+                    messagePostProcessor.getMessageProperties().setMessageId(UUID.randomUUID().toString());
+                    return messagePostProcessor;
+                }*/
+        );
 
         // 上传完成后清理redis缓存
         this.clearPageCache();
@@ -876,8 +886,18 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
         Map<String, Object> message = new HashMap<>();
         message.put("pictureId", picture.getId());
         message.put("operation", "update");
+        //convert将 Java 对象自动转换为 AMQP 消息,对象转换
+        //消息属性设置messagePostProcessor
         rabbitTemplate.convertAndSend(RabbitConfig.PICTURE_REVIEW_EXCHANGE,
-                RabbitConfig.PICTURE_REVIEW_ROUTING_KEY, message);
+                RabbitConfig.PICTURE_REVIEW_ROUTING_KEY, message
+/*                ,messagePostProcessor -> {
+                    // 确保消息持久化
+                    messagePostProcessor.getMessageProperties().setDeliveryMode(MessageDeliveryMode.PERSISTENT);
+                    // 设置消息ID便于追踪
+                    messagePostProcessor.getMessageProperties().setMessageId(UUID.randomUUID().toString());
+                    return messagePostProcessor;
+                }*/
+        );
         // 更新完成后清理redis缓存
         this.clearPageCache();
     }

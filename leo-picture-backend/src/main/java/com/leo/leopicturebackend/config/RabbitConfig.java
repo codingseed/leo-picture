@@ -30,6 +30,11 @@ public class RabbitConfig {
     public static final String PICTURE_REVIEW_QUEUE = "picture.review.queue";
     public static final String PICTURE_REVIEW_ROUTING_KEY = "picture.review.routingkey";
 
+    // 死信交换机和队列配置
+    public static final String DLX_EXCHANGE = "dlx.exchange";
+    public static final String DLX_QUEUE = "dlx.queue";
+    public static final String DLX_ROUTING_KEY = "dlx.routingkey";
+
     @Bean
     public DirectExchange pictureUpdateExchange() {
         return new DirectExchange(PICTURE_UPDATE_EXCHANGE);
@@ -37,7 +42,11 @@ public class RabbitConfig {
 
     @Bean
     public Queue pictureUpdateQueue() {
-        return new Queue(PICTURE_UPDATE_QUEUE);
+        return QueueBuilder.durable(PICTURE_UPDATE_QUEUE)//durable方法会将队列设置为持久化队列
+                .withArgument("x-dead-letter-exchange", DLX_EXCHANGE)
+                .withArgument("x-dead-letter-routing-key", DLX_ROUTING_KEY)
+                .withArgument("x-message-ttl", 10000) // 设置消息队列中的过期时间为10秒
+                .build();
     }
 
     @Bean
@@ -62,6 +71,23 @@ public class RabbitConfig {
         return BindingBuilder.bind(pictureReviewQueue())
                 .to(pictureReviewExchange())
                 .with(PICTURE_REVIEW_ROUTING_KEY);
+    }
+
+    @Bean
+    public DirectExchange dlxExchange() {
+        return new DirectExchange(DLX_EXCHANGE);
+    }
+
+    @Bean
+    public Queue dlxQueue() {
+        return new Queue(DLX_QUEUE);
+    }
+
+    @Bean
+    public Binding dlxBinding() {
+        return BindingBuilder.bind(dlxQueue())
+                .to(dlxExchange())
+                .with(DLX_ROUTING_KEY);
     }
 }
 
