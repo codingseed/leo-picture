@@ -28,14 +28,14 @@ public class AiController {
     /**
      * AI聊天流接口
      *
-     * @param memoryId 内存ID
+     * @param memoryId 内存ID（使用long类型以支持大数值）
      * @param userMessage 用户消息
      * @param request HTTP请求
      * @return ServerSentEvent流
      */
     @GetMapping(value = "/chat", produces = MediaType.TEXT_EVENT_STREAM_VALUE + ";charset=UTF-8")
     public Flux<ServerSentEvent<String>> chatStream(
-            @RequestParam(required = false, defaultValue = "1") int memoryId,
+            @RequestParam(required = false, defaultValue = "1") long memoryId,
             @RequestParam("message") String userMessage,
             HttpServletRequest request) {
 

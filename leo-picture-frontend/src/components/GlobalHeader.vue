@@ -70,6 +70,11 @@ const originItems = [
     title: '主页',
   },
   {
+    key: '/ai',
+    label: 'AI助手',
+    title: 'AI助手',
+  },
+  {
     key: '/add_picture',
     label: '创建图片',
     title: '创建图片',
@@ -152,5 +157,12 @@ const doLogout = async () => {
 
 .logo {
   height: 48px;
+}
+
+/* 确保菜单项不被截断，但不显示滚动条 */
+:deep(.ant-menu) {
+  width: 100%;
+  overflow-x: hidden;
+  white-space: nowrap;
 }
 </style>

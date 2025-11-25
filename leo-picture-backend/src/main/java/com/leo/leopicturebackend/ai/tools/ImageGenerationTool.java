@@ -115,7 +115,7 @@ public class ImageGenerationTool {
                 "n": 1,
                 "size": "1328*1328",
                 "prompt_extend": true,
-                "watermark": true
+                "watermark": false
             }
         }
         """, prompt.replace("\"", "\\\""));

@@ -22,7 +22,7 @@ import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
 
-@Configuration
+//@Configuration
 @Slf4j
 public class RagConfig {
 

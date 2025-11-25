@@ -25,4 +25,28 @@ import BasicLayout from './layouts/BasicLayout.vue'
 // })
 </script>
 
+<style>
+/* 全局样式 - 隐藏所有滚动条 */
+body, html {
+  overflow: hidden;
+  margin: 0;
+  padding: 0;
+}
+
+/* 隐藏滚动条但保留滚动功能 */
+::-webkit-scrollbar {
+  display: none;
+}
+
+/* Firefox 支持 */
+* {
+  scrollbar-width: none;
+}
+
+/* IE 和 Edge 支持 */
+* {
+  -ms-overflow-style: none;
+}
+</style>
+
 <style scoped></style>

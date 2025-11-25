@@ -34,7 +34,7 @@ public class AiServiceImpl implements AiService {
     private AiCoderHelperServices aiCoderHelperServices;
 
     @Override
-    public Flux<ServerSentEvent<String>> chatStream(int memoryId, String userMessage, HttpServletRequest request) {
+    public Flux<ServerSentEvent<String>> chatStream(long memoryId, String userMessage, HttpServletRequest request) {
         // 1. 获取当前登录用户
         // 2. 使用 Reactor Context 传递用户信息
         return Flux.defer(() -> {   //Flux.defer() - 延迟执行 确保用户认证逻辑在流被订阅时才执行，而不是在方法调用时
