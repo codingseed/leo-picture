@@ -201,6 +201,11 @@ declare namespace API {
     id?: number
   }
 
+  type GenerateImageRequest = {
+    prompt?: string
+    spaceId?: string
+  }
+
   type GetOutPaintingTaskResponse = {
     output?: Output1
     requestId?: string

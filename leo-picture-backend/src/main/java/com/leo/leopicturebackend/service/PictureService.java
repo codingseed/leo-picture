@@ -140,4 +140,13 @@ public interface PictureService extends IService<Picture> {
      */
     CreateOutPaintingTaskResponse createPictureOutPaintingTask(CreatePictureOutPaintingTaskRequest createPictureOutPaintingTaskRequest, User loginUser);
 
+    /**
+     * 根据文本描述生成图片
+     * 
+     * @param generateImageRequest 生成图片请求
+     * @param loginUser 登录用户
+     * @return 生成结果
+     */
+    String generateImageByText(GenerateImageRequest generateImageRequest, User loginUser);
+
 }

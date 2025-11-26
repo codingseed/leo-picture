@@ -11,6 +11,7 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.leo.leopicturebackend.api.aliyunai.AliYunAiApi;
 import com.leo.leopicturebackend.api.aliyunai.model.CreateOutPaintingTaskRequest;
+import com.leo.leopicturebackend.ai.tools.ImageGenerationTool;
 import com.leo.leopicturebackend.api.aliyunai.model.CreateOutPaintingTaskResponse;
 import com.leo.leopicturebackend.config.RabbitConfig;
 import com.leo.leopicturebackend.exception.BusinessException;
@@ -18,6 +19,7 @@ import com.leo.leopicturebackend.exception.ErrorCode;
 import com.leo.leopicturebackend.exception.ThrowUtils;
 import com.leo.leopicturebackend.manager.CosManager;
 import com.leo.leopicturebackend.manager.RateLimiterManager;
+import com.leo.leopicturebackend.manager.auth.model.SpaceUserPermissionConstant;
 import com.leo.leopicturebackend.manager.upload.FilePictureUpload;
 import com.leo.leopicturebackend.manager.upload.PictureUploadTemplate;
 import com.leo.leopicturebackend.manager.upload.UrlPictureUpload;
@@ -108,6 +110,8 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
     private RabbitTemplate rabbitTemplate;
     @Resource(name = "pictureUploadExecutor")
     private ThreadPoolExecutor executorService;
+    @Resource
+    private ImageGenerationTool imageGenerationTool;
 
     // 最大图像大小：10MB（字节）
     private static final long MAX_SIZE = 10 * 1024 * 1024;
@@ -1141,6 +1145,45 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
         } catch (Exception e) {
             log.error("名称解析错误", e);
             throw new BusinessException(ErrorCode.OPERATION_ERROR, "名称解析错误");
+        }
+    }
+
+    @Override
+    public String generateImageByText(GenerateImageRequest generateImageRequest, User loginUser) {
+        // 验证请求参数
+        if (generateImageRequest == null || loginUser == null) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "请求参数或用户信息为空");
+        }
+        
+        String prompt = generateImageRequest.getPrompt();
+        if (StrUtil.isBlank(prompt)) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "图像描述不能为空");
+        }
+        
+//        // 校验空间权限（如果提供了空间ID）
+//        Long spaceId = generateImageRequest.getSpaceId();
+//        if (spaceId != null) {
+//            Space space = spaceService.getById(spaceId);
+//            if (space == null) {
+//                throw new BusinessException(ErrorCode.NOT_FOUND_ERROR, "指定的空间不存在");
+//            }
+//            // 检查用户是否有权限在该空间生成图片
+//            boolean hasPermission = spaceUserAuthManager.hasPermission(loginUser.getId(), spaceId,
+//                    SpaceUserPermissionConstant.PICTURE_UPLOAD);
+//            if (!hasPermission) {
+//                throw new BusinessException(ErrorCode.NO_AUTH_ERROR, "您没有权限在该空间生成图片");
+//            }
+//        }
+        
+        try {
+            // 调用图片生成工具
+            log.info("用户 {} 开始生成图片，提示词: {}", loginUser.getId(), prompt);
+            String result = imageGenerationTool.generateImages(prompt, String.valueOf(loginUser.getId()), loginUser.getUserAccount());
+            log.info("用户 {} 图片生成完成，结果: {}", loginUser.getId(), result);
+            return result;
+        } catch (Exception e) {
+            log.error("用户 {} 图片生成失败", loginUser.getId(), e);
+            throw new BusinessException(ErrorCode.OPERATION_ERROR, "图片生成失败: " + e.getMessage());
         }
     }
 

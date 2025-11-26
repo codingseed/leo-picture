@@ -26,26 +26,37 @@ import BasicLayout from './layouts/BasicLayout.vue'
 </script>
 
 <style>
-/* 全局样式 - 隐藏所有滚动条 */
+/* 全局样式 */
 body, html {
-  overflow: hidden;
   margin: 0;
   padding: 0;
+  /* 允许页面正常滚动 */
 }
 
-/* 隐藏滚动条但保留滚动功能 */
+/* 美化滚动条样式而非完全隐藏 */
 ::-webkit-scrollbar {
-  display: none;
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #888;
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #555;
 }
 
 /* Firefox 支持 */
 * {
-  scrollbar-width: none;
-}
-
-/* IE 和 Edge 支持 */
-* {
-  -ms-overflow-style: none;
+  scrollbar-width: thin;
+  scrollbar-color: #888 #f1f1f1;
 }
 </style>
 

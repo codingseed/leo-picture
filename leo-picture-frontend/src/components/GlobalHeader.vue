@@ -53,7 +53,7 @@
 
 <script lang="ts" setup>
 import { computed, h, ref } from 'vue'
-import { HomeOutlined, LogoutOutlined, UserOutlined } from '@ant-design/icons-vue'
+import { HomeOutlined, LogoutOutlined, UserOutlined, PictureOutlined } from '@ant-design/icons-vue'
 import { message, type MenuProps } from 'ant-design-vue'
 import { useRouter } from 'vue-router'
 import { useLoginUserStore } from '@/stores/useLoginUserStore'
@@ -78,6 +78,12 @@ const originItems = [
     key: '/add_picture',
     label: '创建图片',
     title: '创建图片',
+  },
+  {
+    key: '/generate_image',
+    icon: () => h(PictureOutlined),
+    label: '文生图',
+    title: '通过文本描述生成图片',
   },
   {
     key: '/admin/userManage',
@@ -159,10 +165,18 @@ const doLogout = async () => {
   height: 48px;
 }
 
-/* 确保菜单项不被截断，但不显示滚动条 */
+/* 确保菜单项不被截断，并且隐藏滚动条 */
 :deep(.ant-menu) {
   width: 100%;
-  overflow-x: hidden;
+  overflow-x: auto;
   white-space: nowrap;
+  /* 隐藏滚动条但保留滚动功能 */
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* IE and Edge */
+}
+
+/* 隐藏Webkit浏览器的滚动条 */
+:deep(.ant-menu)::-webkit-scrollbar {
+  display: none;
 }
 </style>

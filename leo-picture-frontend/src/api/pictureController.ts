@@ -2,6 +2,21 @@
 /* eslint-disable */
 import request from '@/request'
 
+/** generateImageByText POST /api/picture/generate */
+export async function generateImageByTextUsingPost(
+  body: API.GenerateImageRequest,
+  options?: { [key: string]: any }
+) {
+  return request<API.BaseResponseString_>('/api/picture/generate', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    data: body,
+    ...(options || {}),
+  })
+}
+
 /** deletePicture POST /api/picture/delete */
 export async function deletePictureUsingPost(
   body: API.DeleteRequest,

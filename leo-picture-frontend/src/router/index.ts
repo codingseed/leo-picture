@@ -16,6 +16,7 @@ import SpaceAnalyzePage from '@/pages/SpaceAnalyzePage.vue'
 import SpaceUserManagePage from '@/pages/admin/SpaceUserManagePage.vue'
 import UserExchangeVipPage from '@/pages/UserExchangeVipPage.vue'
 import AIAssistantPage from '@/pages/AIAssistantPage.vue'
+import GenerateImagePage from '@/pages/GenerateImagePage.vue'
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -29,6 +30,11 @@ const router = createRouter({
       path: '/ai',
       name: 'AI助手',
       component: AIAssistantPage,
+    },
+    {
+      path: '/generate_image',
+      name: '文生图',
+      component: GenerateImagePage,
     },
     {
       path: '/user/login',

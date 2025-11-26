@@ -30,6 +30,7 @@ import com.leo.leopicturebackend.model.dto.picture.*;
 import com.leo.leopicturebackend.model.entity.Picture;
 import com.leo.leopicturebackend.model.entity.Space;
 import com.leo.leopicturebackend.model.entity.User;
+import com.leo.leopicturebackend.manager.auth.model.SpaceUserPermissionConstant;
 import com.leo.leopicturebackend.model.enums.PictureReviewStatusEnum;
 import com.leo.leopicturebackend.model.vo.PictureTagCategory;
 import com.leo.leopicturebackend.model.vo.PictureVO;
@@ -484,7 +485,6 @@ public class PictureController {
      * 创建 AI 扩图任务
      */
     @PostMapping("/out_painting/create_task")
-
     @SaSpaceCheckPermission(value = SpaceUserPermissionConstant.PICTURE_EDIT)
     public BaseResponse<CreateOutPaintingTaskResponse> createPictureOutPaintingTask(@RequestBody CreatePictureOutPaintingTaskRequest createPictureOutPaintingTaskRequest,
                                                                                     HttpServletRequest request) {
@@ -504,5 +504,20 @@ public class PictureController {
         ThrowUtils.throwIf(StrUtil.isBlank(taskId), ErrorCode.PARAMS_ERROR);
         GetOutPaintingTaskResponse task = aliYunAiApi.getOutPaintingTask(taskId);
         return ResultUtils.success(task);
+    }
+    
+    /**
+     * 根据文本描述生成图片
+     */
+    @PostMapping("/generate")
+    @SaSpaceCheckPermission(value = SpaceUserPermissionConstant.PICTURE_UPLOAD)
+    public BaseResponse<String> generateImageByText(@RequestBody GenerateImageRequest generateImageRequest, 
+                                                   HttpServletRequest request) {
+        if (generateImageRequest == null) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR);
+        }
+        User loginUser = userService.getLoginUser(request);
+        String result = pictureService.generateImageByText(generateImageRequest, loginUser);
+        return ResultUtils.success(result);
     }
 }

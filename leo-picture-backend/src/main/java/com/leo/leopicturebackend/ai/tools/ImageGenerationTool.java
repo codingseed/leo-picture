@@ -2,11 +2,20 @@ package com.leo.leopicturebackend.ai.tools;
 
 import cn.hutool.json.JSONObject;
 import cn.hutool.json.JSONUtil;
+import com.alibaba.dashscope.aigc.multimodalconversation.MultiModalConversation;
+import com.alibaba.dashscope.aigc.multimodalconversation.MultiModalConversationParam;
+import com.alibaba.dashscope.aigc.multimodalconversation.MultiModalConversationResult;
+import com.alibaba.dashscope.common.MultiModalMessage;
+import com.alibaba.dashscope.exception.ApiException;
+import com.alibaba.dashscope.exception.NoApiKeyException;
+import com.alibaba.dashscope.exception.UploadFileException;
 import com.google.gson.Gson;
 import com.leo.leopicturebackend.ai.tool.AiRequestContext;
 import com.leo.leopicturebackend.common.ResultUtils;
 import com.leo.leopicturebackend.exception.ErrorCode;
+import com.leo.leopicturebackend.exception.ThrowUtils;
 import com.leo.leopicturebackend.model.entity.User;
+import com.leo.leopicturebackend.model.enums.UserRoleEnum;
 import dev.langchain4j.agent.tool.P;
 import dev.langchain4j.agent.tool.Tool;
 import jakarta.annotation.Resource;
@@ -14,12 +23,17 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
+import java.io.IOException;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
 
 /**
  * Langchain4j内部使用ExecutorService线程池
@@ -85,85 +99,169 @@ public class ImageGenerationTool {
         }
     }
 
+
     /**
-     * 实际生成图片的方法
-     * @param prompt 图像描述
-     * @return 生成结果
+     *
+     * 核心方法：调用Qwen-Image模型生成图像
+     * @throws ApiException SDK调用异常（如API接口错误、参数非法等）
+     * @throws NoApiKeyException API密钥缺失异常（未配置或配置错误）
+     * @throws UploadFileException 文件上传异常（当前示例未涉及文件上传，预留异常）
+     * @throws IOException JSON序列化/反序列化异常（如结果转换失败）
      */
-    private String generateImageWithUser(String prompt) {
-        try {
-            log.info("Generating image with prompt: {}", prompt);
+    private String generateImageWithUser(String prompt)
+            throws ApiException, NoApiKeyException, UploadFileException, IOException {
 
-            // 构建符合API要求的请求体
-            // model备选：首选qwen-image-plus。wan2.2-t2i-plus、wan2.2-t2i-flash、wan2.2-t2i-flash。低成本：wanx2.0-t2i-turbo
-            String requestBody = String.format("""
-        {
-            "model": "qwen-image-plus",
-            "input": {
-                "messages": [
-                    {
-                        "role": "user",
-                        "content": [
-                            {
-                                "text": "%s"
-                            }
-                        ]
-                    }
-                ]
-            },
-            "parameters": {
-                "n": 1,
-                "size": "1328*1328",
-                "prompt_extend": true,
-                "watermark": false
-            }
-        }
-        """, prompt.replace("\"", "\\\""));
+        System.out.println("提示词: " + prompt);
 
-            log.debug("Request body: {}", requestBody);
+        // 1. 创建多模态对话客户端实例（阿里云SDK提供的工具类，用于发起生图请求）
+        MultiModalConversation conv = new MultiModalConversation();
 
-            // 创建 HTTP 客户端
-            HttpClient client = HttpClient.newBuilder()
-                    .connectTimeout(Duration.ofSeconds(30))
-                    .build();
+        // 2. 构建用户消息（生图的核心输入：角色+提示词）
+        MultiModalMessage userMessage = MultiModalMessage.builder() // 使用建造者模式（Builder）创建消息对象，代码更简洁
+                .role(UserRoleEnum.USER.getValue()) // 设置消息角色为"user"（API要求：生图请求必须由用户角色发起）
+                .content( // 设置消息内容：List格式，API要求仅含1个text类型的元素
+                        Arrays.asList( // 转为List（因content参数要求为集合类型）
+                                // 单个元素为Map：key固定为"prompt"，value为正向提示词（描述生成图像的细节）
+                                Collections.singletonMap(
+                                        "text",prompt
 
-            // 创建请求
-            HttpRequest request = HttpRequest.newBuilder()
-                    .uri(URI.create(IMAGE_GENERATION_URL))
-                    .header("Authorization", "Bearer " + apiKey)
-                    .header("Content-Type", "application/json")
-                    .POST(HttpRequest.BodyPublishers.ofString(requestBody, StandardCharsets.UTF_8))
-                    .build();
+                                        //因为方便，这里我直接用的String text来传参，如果用createImageTaskRequest可以参考下面                                  //createImageTaskRequest.getInput().getMessages().get(0).getContent().get(0).getText()
+                                        //例如："一副典雅庄重的对联悬挂于厅堂之中，房间是个安静古典的中式布置，桌子上放着一些青花瓷，
+                                        // 对联上左书“义本生知人机同道善思新”，右书“通云赋智乾坤启数高志远”， 横批“智启通义”，
+                                        // 字体飘逸，中间挂在一着一副中国风的画作，内容是岳阳楼。"
 
-            // 发送请求
-            HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
+                                )
+                        )
+                ).build(); // 完成消息对象构建
 
-            // 检查响应状态码
-            int statusCode = response.statusCode();
-            String responseBody = response.body();
-            log.info("Image generation response status: {}, body: {}", statusCode, responseBody);
+        // 3. 构建生图参数（可选参数，控制图像生成规则）
+        Map<String, Object> parameters = new HashMap<>();
+        parameters.put("watermark", true); // 开启水印：生成的图像右下角添加“Qwen-Image生成”水印
+        parameters.put("prompt_extend", true); // 开启提示词智能改写：SDK会优化输入的prompt，提升生图效果（耗时增加3-4秒）
+        parameters.put("negative_prompt", ""); // 反向提示词：空字符串表示不限制“不希望出现的内容”
+        parameters.put("size", "1328*1328"); // 图像分辨率：默认值，宽1328像素、高1328像素（1:1比例）
 
-            if (statusCode >= 200 && statusCode < 300) {
-//                JsonObject responseJson = gson.fromJson(responseBody, JsonObject.class);
-//                if (responseJson.has("output") && responseJson.getAsJsonObject("output").has("task_id")) {
-//                    String taskId = responseJson.getAsJsonObject("output").get("task_id").getAsString();
-//
-//                    // 返回特殊格式，让前端识别为图片生成任务
-//                    return "TASK_ID:" + taskId;
-//                }
+        // 4. 构建完整的生图请求参数（整合API密钥、模型名、消息、参数）
+        MultiModalConversationParam param = MultiModalConversationParam.builder()
+                .apiKey(apiKey) // 传入阿里云API密钥（身份认证核心，缺失会抛NoApiKeyException）
+                .model("qwen-image") // 指定调用的模型：固定为"qwen-image"（通义千问生图模型）
+                .messages(Collections.singletonList(userMessage)) // 传入用户消息列表（API要求仅支持单轮对话，故用 singletonList 生成单元素列表）
+                .parameters(parameters) // 传入步骤3构建的生图参数
+                .build(); // 完成请求参数构建
 
-                // 如果没有task_id，返回原始响应
-                return responseBody;
-            } else {
-                log.error("Image generation failed with status code: {}, response: {}",
-                        statusCode, responseBody);
+        // 5. 发起生图请求并获取结果
+        MultiModalConversationResult result = conv.call(param); // 调用SDK的call方法，发送请求到阿里云API
+        ThrowUtils.throwIf(result.getOutput().getChoices().isEmpty(),ErrorCode.PARAMS_ERROR, "Choices为空");
+        ThrowUtils.throwIf(result.getOutput().getChoices().get(0).getMessage().getContent().isEmpty(),ErrorCode.PARAMS_ERROR, "Content为空");
 
-                return "图片生成失败: " + ResultUtils.error(ErrorCode.OPERATION_ERROR,responseBody);
-            }
-        } catch (Exception e) {
-            log.error("Failed to generate image", e);
-
-            return "图片生成异常: " + e.getMessage();
-        }
+        Map<String, Object> imageUrlMap = result.getOutput().getChoices().get(0).getMessage().getContent().get(0);
+        return (String)imageUrlMap.get("image");
     }
+
+
+//    /**
+//     * 实际生成图片的方法
+//     * @param prompt 图像描述
+//     * @return 生成结果
+//     */
+//    private String generateImageWithUser(String prompt) {
+//        try {
+//            log.info("Generating image with prompt: {}", prompt);
+//
+//            // 构建符合API要求的请求体
+//            // model备选：首选qwen-image-plus。wan2.2-t2i-plus、wan2.2-t2i-flash、wan2.2-t2i-flash。低成本：wanx2.0-t2i-turbo
+//            String requestBody = String.format("""
+//        {
+//            "model": "qwen-image-plus",
+//            "input": {
+//                "messages": [
+//                    {
+//                        "role": "user",
+//                        "content": [
+//                            {
+//                                "text": "%s"
+//                            }
+//                        ]
+//                    }
+//                ]
+//            },
+//            "parameters": {
+//                "n": 1,
+//                "size": "1328*1328",
+//                "prompt_extend": true,
+//                "watermark": false
+//            }
+//        }
+//        """, prompt.replace("\"", "\\\""));
+//
+//            log.debug("Request body: {}", requestBody);
+//
+//            // 创建 HTTP 客户端
+//            HttpClient client = HttpClient.newBuilder()
+//                    .connectTimeout(Duration.ofSeconds(30))
+//                    .build();
+//
+//            // 创建请求
+//            HttpRequest request = HttpRequest.newBuilder()
+//                    .uri(URI.create(IMAGE_GENERATION_URL))
+//                    .header("Authorization", "Bearer " + apiKey)
+//                    .header("Content-Type", "application/json")
+//                    .POST(HttpRequest.BodyPublishers.ofString(requestBody, StandardCharsets.UTF_8))
+//                    .build();
+//
+//            // 发送请求
+//            HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
+//
+//            // 检查响应状态码
+//            int statusCode = response.statusCode();
+//            String responseBody = response.body();
+//            log.info("Image generation response status: {}, body: {}", statusCode, responseBody);
+//
+//            if (statusCode >= 200 && statusCode < 300) {
+//                try {
+//                    // 解析JSON响应
+//                    JSONObject jsonObject = JSONUtil.parseObj(responseBody);
+//
+//                    // 尝试提取image URL
+//                    if (jsonObject.containsKey("output")) {
+//                        JSONObject output = jsonObject.getJSONObject("output");
+//                        if (output.containsKey("choices") && !output.getJSONArray("choices").isEmpty()) {
+//                            JSONObject choice = output.getJSONArray("choices").getJSONObject(0);
+//                            if (choice.containsKey("message")) {
+//                                JSONObject message = choice.getJSONObject("message");
+//                                if (message.containsKey("content") && !message.getJSONArray("content").isEmpty()) {
+//                                    JSONObject content = message.getJSONArray("content").getJSONObject(0);
+//                                    if (content.containsKey("image")) {
+//                                        // 获取image字段值
+//                                        String imageField = content.getStr("image");
+//                                        // 清理URL：移除反引号和空白字符
+//                                        String cleanImageUrl = imageField.replaceAll("[`\\s]", "");
+//                                        log.info("Extracted and cleaned image URL: {}", cleanImageUrl);
+//                                        return cleanImageUrl;
+//                                    }
+//                                }
+//                            }
+//                        }
+//                    }
+//
+//                    // 如果无法提取image URL，返回原始响应作为后备
+//                    log.warn("Could not extract image URL from response");
+//                    return responseBody;
+//                } catch (Exception e) {
+//                    log.error("Error parsing response JSON: {}", e.getMessage());
+//                    // 解析失败时返回原始响应
+//                    return responseBody;
+//                }
+//            } else {
+//                log.error("Image generation failed with status code: {}, response: {}",
+//                        statusCode, responseBody);
+//
+//                return "图片生成失败: " + ResultUtils.error(ErrorCode.OPERATION_ERROR, responseBody);
+//            }
+//        } catch (Exception e) {
+//            log.error("Failed to generate image", e);
+//
+//            return "图片生成异常: " + e.getMessage();
+//        }
+//    }
 }
