@@ -26,27 +26,14 @@ import BasicLayout from './layouts/BasicLayout.vue'
 </script>
 
 <style>
-/* 全局样式 - 隐藏所有滚动条 */
+/* 全局样式 */
 body, html {
-  overflow: hidden;
   margin: 0;
   padding: 0;
 }
 
-/* 隐藏滚动条但保留滚动功能 */
-::-webkit-scrollbar {
-  display: none;
-}
-
-/* Firefox 支持 */
-* {
-  scrollbar-width: none;
-}
-
-/* IE 和 Edge 支持 */
-* {
-  -ms-overflow-style: none;
-}
+/* 隐藏滚动条但保留滚动功能 - 仅针对特定需要隐藏滚动条的元素 */
+/* 保留整体页面的滚动功能 */
 </style>
 
 <style scoped></style>
