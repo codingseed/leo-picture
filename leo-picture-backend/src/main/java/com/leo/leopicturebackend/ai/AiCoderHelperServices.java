@@ -30,7 +30,7 @@ public interface AiCoderHelperServices {
 //    Flux <String> chatStream(@MemoryId int memoryId, @UserMessage String UserMessage);
 
     @SystemMessage(fromResource = "system-prompt.txt")
-    Flux<String> chatStream(@MemoryId long memoryId, @UserMessage String UserMessage, @V("userId") String userId, @V("userAccount") String userAccount);
+    Flux<String> chatStream(@MemoryId String memoryId, @UserMessage String UserMessage, @V("userId") String userId, @V("userAccount") String userAccount);
 
 //    /**
 //     * 生成图片的方法

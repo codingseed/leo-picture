@@ -17,5 +17,5 @@ public interface AiService {
      * @param request HTTP请求
      * @return ServerSentEvent流
      */
-    Flux<ServerSentEvent<String>> chatStream(long memoryId, String userMessage, HttpServletRequest request);
+    Flux<ServerSentEvent<String>> chatStream(String memoryId, String userMessage, HttpServletRequest request);
 }

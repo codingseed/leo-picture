@@ -38,7 +38,7 @@ class LeoPictureBackendApplicationTests {
     void TestAmapMcp() {
         try {
             Flux<String> result = aiCoderHelperServices
-                    .chatStream(123, "你好吗", "userId", "userAccount");
+                    .chatStream("mem123", "你好吗", "userId", "userAccount");
 
             // 收集所有结果
             List<String> results = result.collectList().block();

@@ -17,6 +17,7 @@ import org.springframework.util.StringUtils;
 public class RedissonConfig {
     private Lock lock = new Lock();
     private Client client = new Client();
+    private String address;
     private String password;
 
     @Data
@@ -40,7 +41,7 @@ public class RedissonConfig {
             Config config = new Config();
 
             config.useSingleServer()
-                    .setAddress("redis://127.0.0.1:6379")
+                    .setAddress(address)
                     .setDatabase(0)
                     .setConnectionPoolSize(client.getConnectionPoolSize())
                     .setIdleConnectionTimeout(client.getIdleConnectionTimeout().intValue())

@@ -72,7 +72,7 @@
         <div v-else-if="generatedImageUrl" class="image-preview">
           <img :src="generatedImageUrl" alt="生成的图片" />
           <div class="image-actions">
-            <a-button size="middle" @click="copyImageUrl" style="margin-right: 8px;">
+            <a-button size="middle" @click="copyImageUrl" style="margin-right: 8px">
               <copy-outlined /> 复制URL
             </a-button>
             <a-button size="middle" @click="downloadImage">
@@ -170,58 +170,57 @@ const generateImage = async () => {
 
     if (response.data && response.data.code === 0) {
       console.log('后端返回的数据:', response.data)
-
+      
+      // 检查是否是提示信息（如次数限制、上限等）
+      if (typeof response.data.data === 'string' && 
+          (response.data.data.includes('次数') || 
+           response.data.data.includes('上限') || 
+           response.data.data.includes('请明天再试'))) {
+        // 使用消息提示组件显示提示信息
+        message.info({
+          content: response.data.data,
+          duration: 5,
+          showClose: true
+        })
+      } 
       // 后端现在直接返回清理后的图片URL
-      if (typeof response.data.data === 'string' && response.data.data.startsWith('http')) {
+      else if (typeof response.data.data === 'string' && response.data.data.startsWith('http')) {
         // 如果数据是直接的URL字符串
         generatedImageUrl.value = response.data.data
         console.log('直接使用后端返回的URL:', generatedImageUrl.value)
         message.success('图片生成成功')
       } else {
-        // // 作为后备方案，如果后端仍然返回JSON字符串，尝试解析
-        // try {
-        //   const urlStr = String(response.data);
-        //   // 检查是否为JSON字符串格式
-        //   if (urlStr.startsWith('{') && urlStr.endsWith('}')) {
-        //     const parsedData = JSON.parse(urlStr);
-        //     // 尝试从嵌套结构中提取URL
-        //     if (parsedData.output && parsedData.output.choices && parsedData.output.choices[0]) {
-        //       const imageField = parsedData.output.choices[0].message?.content?.[0]?.image;
-        //       if (imageField) {
-        //         // 清理可能存在的反引号和空白字符
-        //         generatedImageUrl.value = imageField.replace(/[`\s]/g, '');
-        //         console.log('从后备解析中提取的URL:', generatedImageUrl.value);
-        //         message.success('图片生成成功');
-        //       } else {
-        //         error.value = '无法从响应中提取图片URL';
-        //         console.error('image字段不存在');
-        //       }
-        //     } else {
-        //       error.value = '响应数据格式不正确';
-        //     }
-        //   } else {
-        //     // 如果不是JSON格式，尝试直接作为URL使用
-        //     generatedImageUrl.value = urlStr.replace(/[`\s]/g, '');
-        //     if (generatedImageUrl.value.startsWith('http')) {
-        //       console.log('使用清理后的字符串作为URL:', generatedImageUrl.value);
-        //       message.success('图片生成成功');
-        //     } else {
-        //       error.value = '返回的数据不是有效的图片URL';
-        //       console.error('返回值不是以http开头的URL:', generatedImageUrl.value);
-        //     }
-        //   }
-        // } catch (e) {
-        //   console.error('处理响应数据时出错:', e);
-        //   error.value = '处理响应数据失败';
-        // }
+        // 注释掉的后备解析代码...
       }
     } else {
-      error.value = response.message || '图片生成失败'
-      console.error('API返回错误:', response.message)
+      // 检查是否是限流错误消息
+      const responseMessage = response.message || ''
+      if (responseMessage.includes('您今天生成图片的次数已达上限')) {
+        // 使用消息提示组件显示限流提醒
+        message.warning({
+          content: responseMessage,
+          duration: 5,
+          showClose: true
+        })
+      } else {
+        error.value = responseMessage || '图片生成失败'
+      }
+      console.error('API返回错误:', responseMessage)
     }
   } catch (err) {
     console.error('生成图片失败:', err)
-    error.value = '图片生成失败，请稍后重试'
+    // 检查是否是限流错误消息
+    const errorMessage = err.message || ''
+    if (errorMessage.includes('您今天生成图片的次数已达上限')) {
+      // 使用消息提示组件显示限流提醒
+      message.warning({
+        content: errorMessage,
+        duration: 5,
+        showClose: true
+      })
+    } else {
+      error.value = '图片生成失败，请稍后重试'
+    }
   } finally {
     loading.value = false
   }
@@ -232,11 +231,12 @@ const copyImageUrl = () => {
   if (!generatedImageUrl.value) return
 
   // 使用现代的剪贴板API
-  navigator.clipboard.writeText(generatedImageUrl.value)
+  navigator.clipboard
+    .writeText(generatedImageUrl.value)
     .then(() => {
       message.success('URL已复制到剪贴板')
     })
-    .catch(err => {
+    .catch((err) => {
       console.error('复制失败:', err)
       // 降级方案
       try {
@@ -439,7 +439,8 @@ const clear = () => {
 }
 
 @keyframes float {
-  0%, 100% {
+  0%,
+  100% {
     transform: translateY(0);
   }
   50% {

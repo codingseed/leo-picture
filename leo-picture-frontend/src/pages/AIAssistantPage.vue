@@ -5,26 +5,24 @@
       <div class="chat-header">
         <h2>云梦图坊AI助手</h2>
         <div class="header-actions">
-          <div class="session-info">
-            会话 ID: {{ sessionId }}
-          </div>
-          <button @click="resetSession" class="new-chat-button">
-            新会话
-          </button>
+          <div class="session-info">会话 ID: {{ sessionId }}</div>
+          <button @click="resetSession" class="new-chat-button">新会话</button>
         </div>
       </div>
-      
+
       <div class="messages-wrapper" ref="messagesWrapper">
-        
         <!-- 聊天消息列表 -->
-        <div v-for="(message, index) in messages" :key="index" 
-             :class="['message-item', message.type === 'user' ? 'user-message' : 'ai-message']">
+        <div
+          v-for="(message, index) in messages"
+          :key="index"
+          :class="['message-item', message.type === 'user' ? 'user-message' : 'ai-message']"
+        >
           <div class="message-avatar">
-            <img 
-              :src="message.type === 'user' ? '/favicon.ico' : '/favicon.ico'" 
-              :alt="message.type === 'user' ? '用户' : 'AI'" 
+            <img
+              :src="message.type === 'user' ? '/favicon.ico' : '/favicon.ico'"
+              :alt="message.type === 'user' ? '用户' : 'AI'"
               class="avatar-img"
-            >
+            />
           </div>
           <div class="message-content">
             <div class="message-bubble">
@@ -38,11 +36,11 @@
             </div>
           </div>
         </div>
-        
+
         <!-- AI 正在输入状态 -->
         <div v-if="isTyping" class="message-item ai-message">
           <div class="message-avatar">
-            <img src="/favicon.ico" alt="AI" class="avatar-img">
+            <img src="/favicon.ico" alt="AI" class="avatar-img" />
           </div>
           <div class="message-content">
             <div class="message-bubble typing">
@@ -56,22 +54,18 @@
         </div>
       </div>
     </div>
-    
+
     <!-- 输入框区域 -->
     <div class="chat-input-container">
-      <textarea 
-        v-model="inputMessage" 
+      <textarea
+        v-model="inputMessage"
         @keyup.enter.ctrl="sendMessage"
         @keyup.enter.meta="sendMessage"
         placeholder="请输入你的问题..."
         class="chat-textarea"
         ref="textareaRef"
       ></textarea>
-      <button 
-        @click="sendMessage" 
-        :disabled="!inputMessage.trim() || isTyping"
-        class="send-button"
-      >
+      <button @click="sendMessage" :disabled="!inputMessage.trim() || isTyping" class="send-button">
         发送
       </button>
     </div>
@@ -79,60 +73,65 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, nextTick } from 'vue';
-import { createChatEventSource, createNewSession } from '@/api/aiController';
+import { ref, onMounted, nextTick, onUnmounted } from 'vue'
+import { createChatEventSource } from '@/api/aiController'
+// 移除未使用的导入
+// import { useLoginUserStore } from '@/stores/useLoginUserStore';
+// import { message } from 'ant-design-vue';
 
 // 会话和消息状态
-const sessionId = ref<string>('');
-const messages = ref<Array<{ type: 'user' | 'ai' | 'ai-partial'; content: string }>>([]);
-const inputMessage = ref('');
-const isTyping = ref(false);
-const messagesWrapper = ref<HTMLElement>();
-const textareaRef = ref<HTMLTextAreaElement>();
-let currentAIResponse = '';
-let eventSource: EventSource | null = null;
+const sessionId = ref<string>('')
 
 // 生成会话 ID
 const generateSessionId = (): string => {
-  return 'chat_' + Date.now() + '_' + Math.random().toString(36).substring(2, 9);
-};
+  return 'chat_' + Date.now() + '_' + Math.random().toString(36).substring(2, 9)
+}
+const messages = ref<Array<{ type: 'user' | 'ai' | 'ai-partial'; content: string }>>([])
+const inputMessage = ref('')
+const isTyping = ref(false)
+const messagesWrapper = ref<HTMLElement>()
+const textareaRef = ref<HTMLTextAreaElement>()
+let currentAIResponse = ''
+let eventSource: EventSource | null = null
+// 移除未使用的变量
+// const loginUserStore = useLoginUserStore();
 
 // 从本地存储加载会话
 const loadSessionFromStorage = () => {
   try {
     // 尝试从URL获取会话ID
-    const urlParams = new URLSearchParams(window.location.search);
-    const urlSessionId = urlParams.get('sessionId');
-    
-    let sessionData = null;
-    let targetSessionId = urlSessionId;
-    
+    const urlParams = new URLSearchParams(window.location.search)
+    const urlSessionId = urlParams.get('sessionId')
+
+    let sessionData = null
+    let targetSessionId = urlSessionId
+
     // 如果URL中有会话ID，尝试加载该会话
     if (targetSessionId) {
-      sessionData = localStorage.getItem(`ai_chat_session_${targetSessionId}`);
+      sessionData = localStorage.getItem(`ai_chat_session_${targetSessionId}`)
     }
-    
+
     // 如果没有找到会话或URL中没有会话ID，尝试加载最后一个会话
     if (!sessionData) {
-      const lastSessionId = localStorage.getItem('ai_chat_last_session_id');
+      const lastSessionId = localStorage.getItem('ai_chat_last_session_id')
       if (lastSessionId) {
-        sessionData = localStorage.getItem(`ai_chat_session_${lastSessionId}`);
-        targetSessionId = lastSessionId;
+        sessionData = localStorage.getItem(`ai_chat_session_${lastSessionId}`)
+        targetSessionId = lastSessionId
       }
     }
-    
+
     if (sessionData) {
-      const parsedData = JSON.parse(sessionData);
-      sessionId.value = parsedData.sessionId;
-      messages.value = parsedData.messages || [];
-      return true;
+      const parsedData = JSON.parse(sessionData)
+      sessionId.value = parsedData.sessionId
+      messages.value = parsedData.messages || []
+      return true
     }
   } catch (error) {
-    console.error('加载会话失败:', error);
+    console.error('加载会话失败:', error)
   }
-  
-  return false;
-};
+
+  return false
+}
 
 // 保存会话到本地存储
 const saveSessionToStorage = () => {
@@ -140,180 +139,192 @@ const saveSessionToStorage = () => {
     const sessionData = {
       sessionId: sessionId.value,
       messages: messages.value,
-      timestamp: Date.now()
-    };
-    
+      timestamp: Date.now(),
+    }
+
     // 保存会话数据
-    localStorage.setItem(`ai_chat_session_${sessionId.value}`, JSON.stringify(sessionData));
+    localStorage.setItem(`ai_chat_session_${sessionId.value}`, JSON.stringify(sessionData))
     // 更新最后会话ID
-    localStorage.setItem('ai_chat_last_session_id', sessionId.value);
-    
+    localStorage.setItem('ai_chat_last_session_id', sessionId.value)
+
     // 清理旧会话（保留最近5个）
-    cleanupOldSessions();
+    cleanupOldSessions()
   } catch (error) {
-    console.error('保存会话失败:', error);
+    console.error('保存会话失败:', error)
   }
-};
+}
 
 // 清理旧会话
 const cleanupOldSessions = () => {
   try {
-    const sessions = [];
-    
+    const sessions = []
+
     // 收集所有会话
     for (let i = 0; i < localStorage.length; i++) {
-      const key = localStorage.key(i);
+      const key = localStorage.key(i)
       if (key && key.startsWith('ai_chat_session_')) {
-        const sessionData = localStorage.getItem(key);
+        const sessionData = localStorage.getItem(key)
         if (sessionData) {
-          const parsed = JSON.parse(sessionData);
-          sessions.push({ key, timestamp: parsed.timestamp });
+          const parsed = JSON.parse(sessionData)
+          sessions.push({ key, timestamp: parsed.timestamp })
         }
       }
     }
-    
+
     // 按时间排序并删除最旧的会话
-    sessions.sort((a, b) => b.timestamp - a.timestamp);
+    sessions.sort((a, b) => b.timestamp - a.timestamp)
     while (sessions.length > 5) {
-      const oldestSession = sessions.pop();
+      const oldestSession = sessions.pop()
       if (oldestSession) {
-        localStorage.removeItem(oldestSession.key);
+        localStorage.removeItem(oldestSession.key)
       }
     }
   } catch (error) {
-    console.error('清理旧会话失败:', error);
+    console.error('清理旧会话失败:', error)
   }
-};
+}
 
 // 重置会话
 const resetSession = async () => {
-  try {
-    // 使用API创建新会话
-    const { sessionId: newSessionId } = await createNewSession();
-    sessionId.value = newSessionId;
-  } catch (error) {
-    console.error('创建新会话失败，使用备用方案:', error);
-    // 降级处理：使用纯前端生成
-    sessionId.value = generateSessionId();
+  // 关闭当前活跃的SSE连接
+  if (eventSource) {
+    eventSource.close()
+    eventSource = null
   }
-  
-  messages.value = [];
+
+  // 重置输入状态
+  isTyping.value = false
+  currentAIResponse = ''
+
+  // 生成新会话ID
+  sessionId.value = generateSessionId()
+
+  messages.value = []
   // 添加欢迎消息
-  messages.value.push({ 
-    type: 'ai', 
+  messages.value.push({
+    type: 'ai',
     content: `你好！我是你的智能云图库助手，可以帮你更好地使用我们的在线协同云图库平台。
 
-我可以帮助你：
-• 上传和管理图片资源
-• 搜索和查找特定图片
-• 与团队成员协作编辑
-• 使用图库的各种功能特性
-• 解决你在使用过程中遇到的问题
+    我可以帮助你：
+    • 上传和管理图片资源
+    • 搜索和查找特定图片
+    • 与团队成员协作编辑
+    • 使用图库的各种功能特性
+    • 解决你在使用过程中遇到的问题
 
-请问有什么我可以帮你的吗？`
-  });
-  saveSessionToStorage();
-};
+    请问有什么我可以帮你的吗？`,
+  })
+  saveSessionToStorage()
+}
 
 // 发送消息
 const sendMessage = async () => {
-  const message = inputMessage.value.trim();
-  if (!message || isTyping.value) return;
-  
+  const message = inputMessage.value.trim()
+  if (!message || isTyping.value) return
+
   // 添加用户消息到列表
-  messages.value.push({ type: 'user', content: message });
-  inputMessage.value = '';
-  
+  messages.value.push({ type: 'user', content: message })
+  inputMessage.value = ''
+
   // 保存会话
-  saveSessionToStorage();
-  
+  saveSessionToStorage()
+
   // 滚动到底部
-  await nextTick();
-  scrollToBottom();
-  
+  await nextTick()
+  scrollToBottom()
+
   // 开始AI回复
-  isTyping.value = true;
-  currentAIResponse = '';
-  
+  isTyping.value = true
+  currentAIResponse = ''
+
   // 先创建一个占位的AI消息（使用ai-partial类型）
-  const aiMessageIndex = messages.value.length;
-  messages.value.push({ type: 'ai-partial', content: '' });
-  
+  const aiMessageIndex = messages.value.length
+  messages.value.push({ type: 'ai-partial', content: '' })
+
   try {
-    // 从sessionId提取一个数字作为memoryId
-    const memoryId = parseInt(sessionId.value.replace(/\D/g, '')) || 1;
-    
-    // 使用API控制器创建SSE连接
-    eventSource = createChatEventSource(
-      memoryId,
-      message,
-      (data) => {
-        // 检查是否是结束信号
-        if (data === '[DONE]') {
-          // 完成时只更新状态，不再添加新消息
-          isTyping.value = false;
-          
-          // 将ai-partial类型更新为ai类型，不改变内容
-          if (aiMessageIndex < messages.value.length && messages.value[aiMessageIndex].type === 'ai-partial') {
-            messages.value[aiMessageIndex].type = 'ai';
-            saveSessionToStorage();
-          }
-          
-          nextTick(() => scrollToBottom());
-        } else {
-          currentAIResponse += data;
-          // 直接更新之前创建的AI消息，不创建新消息
-          if (aiMessageIndex < messages.value.length) {
-            messages.value[aiMessageIndex].content = currentAIResponse;
-            nextTick(() => scrollToBottom());
-          }
+    // 重要：发送新消息前关闭可能存在的旧SSE连接
+    if (eventSource) {
+      eventSource.close()
+      eventSource = null
+    }
+
+    // 使用简化后的API创建SSE连接
+    eventSource = createChatEventSource(message, sessionId.value)
+
+    // 设置消息处理
+    eventSource.onmessage = (event) => {
+      console.log('收到SSE消息:', event.data)
+      // 检查是否是结束信号
+      if (event.data === '[DONE]') {
+        // 完成时关闭连接并更新状态
+        isTyping.value = false
+        eventSource.close()
+        eventSource = null
+
+        // 将ai-partial类型更新为ai类型
+        if (
+          aiMessageIndex < messages.value.length &&
+          messages.value[aiMessageIndex].type === 'ai-partial'
+        ) {
+          messages.value[aiMessageIndex].type = 'ai'
+          saveSessionToStorage()
         }
-      },
-      () => {
-        console.log('SSE连接已建立');
-      },
-      (error) => {
-        console.error('SSE连接错误:', error);
-        handleSSEError();
-      },
-      () => {
-        console.log('SSE连接已关闭');
-        // 连接关闭时只更新状态
-        if (isTyping.value) {
-          isTyping.value = false;
-          nextTick(() => scrollToBottom());
+
+        nextTick(() => scrollToBottom())
+      } else {
+        currentAIResponse += event.data
+        // 直接更新之前创建的AI消息
+        if (aiMessageIndex < messages.value.length) {
+          messages.value[aiMessageIndex].content = currentAIResponse
+          nextTick(() => scrollToBottom())
         }
       }
-    );
+    }
+
+    // 设置错误处理
+    eventSource.onerror = (error) => {
+      console.error('SSE连接错误:', error)
+      handleSSEError()
+    }
+
+    // 设置连接关闭处理
+    eventSource.onclose = () => {
+      console.log('SSE连接已关闭')
+      if (isTyping.value) {
+        isTyping.value = false
+        nextTick(() => scrollToBottom())
+      }
+    }
   } catch (error) {
-    console.error('发送消息失败:', error);
-    handleSSEError();
+    console.error('发送消息失败:', error)
+    handleSSEError()
   }
-};
+}
 
 // 处理SSE错误
 const handleSSEError = () => {
-  isTyping.value = false;
+  isTyping.value = false
   if (eventSource) {
-    eventSource.close();
+    eventSource.close()
+    eventSource = null
   }
-  
+
   // 检查最后一条消息是否是ai-partial类型
-  const lastIndex = messages.value.length - 1;
+  const lastIndex = messages.value.length - 1
   if (lastIndex >= 0 && messages.value[lastIndex].type === 'ai-partial') {
-    // 更新现有的ai-partial消息，不创建新消息
+    // 更新现有的ai-partial消息
     if (currentAIResponse) {
-      messages.value[lastIndex].type = 'ai';
-      messages.value[lastIndex].content = currentAIResponse;
+      messages.value[lastIndex].type = 'ai'
+      messages.value[lastIndex].content = currentAIResponse
     } else {
-      messages.value[lastIndex].type = 'ai';
-      messages.value[lastIndex].content = '抱歉，连接出现问题，请稍后重试。';
+      messages.value[lastIndex].type = 'ai'
+      messages.value[lastIndex].content = '抱歉，连接出现问题，请稍后重试。'
     }
   }
-  
-  saveSessionToStorage();
-  nextTick(() => scrollToBottom());
-};
+
+  saveSessionToStorage()
+  nextTick(() => scrollToBottom())
+}
 
 // 移除handleSSEComplete函数，因为我们不再需要它
 
@@ -322,57 +333,67 @@ const handleSSEError = () => {
 // 滚动到底部
 // 格式化消息内容，支持分段和简单Markdown样式
 const formatMessageContent = (content: string): string => {
-  if (!content) return '';
-  
+  if (!content) return ''
+
   // 替换段落分隔（连续换行）
-  let formattedContent = content.replace(/\n\n+/g, '<br><br>');
-  
+  let formattedContent = content.replace(/\n\n+/g, '<br><br>')
+
   // 替换单换行
-  formattedContent = formattedContent.replace(/\n/g, '<br>');
-  
+  formattedContent = formattedContent.replace(/\n/g, '<br>')
+
   // 简单Markdown支持：加粗（**内容**）
-  formattedContent = formattedContent.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
-  
+  formattedContent = formattedContent.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+
   // 简单Markdown支持：斜体（*内容*）
-  formattedContent = formattedContent.replace(/\*(.*?)\*/g, '<em>$1</em>');
-  
+  formattedContent = formattedContent.replace(/\*(.*?)\*/g, '<em>$1</em>')
+
   // 简单Markdown支持：标题（# 标题）
-  formattedContent = formattedContent.replace(/^###\s+(.*?)$/gm, '<h3>$1</h3>');
-  formattedContent = formattedContent.replace(/^##\s+(.*?)$/gm, '<h2>$1</h2>');
-  formattedContent = formattedContent.replace(/^#\s+(.*?)$/gm, '<h1>$1</h1>');
-  
-  return formattedContent;
-};
+  formattedContent = formattedContent.replace(/^###\s+(.*?)$/gm, '<h3>$1</h3>')
+  formattedContent = formattedContent.replace(/^##\s+(.*?)$/gm, '<h2>$1</h2>')
+  formattedContent = formattedContent.replace(/^#\s+(.*?)$/gm, '<h1>$1</h1>')
+
+  return formattedContent
+}
 
 const scrollToBottom = () => {
   if (messagesWrapper.value) {
-    messagesWrapper.value.scrollTop = messagesWrapper.value.scrollHeight;
+    messagesWrapper.value.scrollTop = messagesWrapper.value.scrollHeight
   }
-};
+}
+
+// 组件卸载时清理资源
+onUnmounted(() => {
+  // 确保关闭SSE连接，防止内存泄漏
+  if (eventSource) {
+    eventSource.close()
+    eventSource = null
+  }
+})
 
 // 组件挂载时初始化
 onMounted(() => {
   // 尝试加载已有会话，如果没有则创建新会话
   if (!loadSessionFromStorage()) {
     // 生成新会话ID
-    sessionId.value = generateSessionId();
+    sessionId.value = generateSessionId()
     // 添加欢迎消息
-    messages.value.push({ 
-      type: 'ai', 
-      content: '你好！我是AI编程小助手，可以帮你解答编程学习和求职面试相关的问题。请问有什么我可以帮助你的吗？' 
-    });
+    messages.value.push({
+      type: 'ai',
+      content:
+        '你好！我是AI编程小助手，可以帮我解答编程学习和求职面试相关的问题。请问有什么我可以帮助你的吗？',
+    })
     // 保存新会话
-    saveSessionToStorage();
+    saveSessionToStorage()
   }
-  
+
   // 聚焦输入框
   if (textareaRef.value) {
-    textareaRef.value.focus();
+    textareaRef.value.focus()
   }
-  
+
   // 滚动到底部
-  nextTick(() => scrollToBottom());
-});
+  nextTick(() => scrollToBottom())
+})
 </script>
 
 <!-- 全局样式已移至App.vue -->
@@ -568,26 +589,26 @@ onMounted(() => {
 }
 
 .typing-indicator span {
-    width: 8px;
-    height: 8px;
-    background-color: #999;
-    border-radius: 50%;
-    animation: typing 1.4s infinite ease-in-out both;
-  }
-  
-  .typing-indicator-small {
-    display: inline-flex;
-    gap: 3px;
-    margin-left: 6px;
-  }
-  
-  .typing-indicator-small span {
-    width: 6px;
-    height: 6px;
-    background-color: #666;
-    border-radius: 50%;
-    animation: typing 1.4s infinite ease-in-out both;
-  }
+  width: 8px;
+  height: 8px;
+  background-color: #999;
+  border-radius: 50%;
+  animation: typing 1.4s infinite ease-in-out both;
+}
+
+.typing-indicator-small {
+  display: inline-flex;
+  gap: 3px;
+  margin-left: 6px;
+}
+
+.typing-indicator-small span {
+  width: 6px;
+  height: 6px;
+  background-color: #666;
+  border-radius: 50%;
+  animation: typing 1.4s infinite ease-in-out both;
+}
 
 .typing-indicator span:nth-child(1) {
   animation-delay: -0.32s;
@@ -598,7 +619,9 @@ onMounted(() => {
 }
 
 @keyframes typing {
-  0%, 80%, 100% {
+  0%,
+  80%,
+  100% {
     transform: scale(0);
   }
   40% {
@@ -681,23 +704,23 @@ onMounted(() => {
   .ai-assistant-container {
     height: 100vh;
   }
-  
+
   .message-content {
     max-width: 85%;
   }
-  
+
   .chat-header {
     padding: 12px 16px;
   }
-  
+
   .chat-header h2 {
     font-size: 18px;
   }
-  
+
   .messages-wrapper {
     padding: 16px;
   }
-  
+
   .chat-input-container {
     padding: 12px 16px;
   }

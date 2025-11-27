@@ -34,16 +34,21 @@ public class AiServiceImpl implements AiService {
     private AiCoderHelperServices aiCoderHelperServices;
 
     @Override
-    public Flux<ServerSentEvent<String>> chatStream(long memoryId, String userMessage, HttpServletRequest request) {
+    public Flux<ServerSentEvent<String>> chatStream(String memoryId, String userMessage, HttpServletRequest request) {
         // 1. 获取当前登录用户
         // 2. 使用 Reactor Context 传递用户信息
         return Flux.defer(() -> {   //Flux.defer() - 延迟执行 确保用户认证逻辑在流被订阅时才执行，而不是在方法调用时
             try {
                 User loginUser = userService.getLoginUser(request);
                 if (loginUser == null) {
-                    return Flux.just(ServerSentEvent.<String>builder()
-                            .data("错误：用户未登录")
-                            .build());
+                    return Flux.just(
+                            ServerSentEvent.<String>builder()
+                                    .data("错误：用户未登录")
+                                    .build(),
+                            ServerSentEvent.<String>builder()
+                                    .data("[DONE]")
+                                    .build()
+                    );
                 }
 
                 log.info("用户已登录，用户ID: {}, 用户账号: {}", loginUser.getId(), loginUser.getUserAccount());
@@ -51,18 +56,40 @@ public class AiServiceImpl implements AiService {
                 // ✅ 直接传递用户信息，无需TTL
                 return aiCoderHelperServices.chatStream(memoryId, userMessage,
                                 String.valueOf(loginUser.getId()), loginUser.getUserAccount())
-                        .timeout(Duration.ofSeconds(30))
+                        .timeout(Duration.ofSeconds(300)) // 增加超时时间到5分钟
                         .map(chunk -> ServerSentEvent.<String>builder()
                                 .data(processImageUrl(chunk))
                                 .build())
-                        .retry(2)
-                        .doOnError(error -> log.error("AI流处理错误", error));
+                        //.retry(2)
+                        .concatWith(Flux.just(
+                                ServerSentEvent.<String>builder()
+                                        .data("[DONE]")
+                                        .build()
+                        ))
+                        .onErrorResume(error -> {
+                            log.error("AI流处理错误", error);
+                            return Flux.just(
+                                    ServerSentEvent.<String>builder()
+                                            .data("处理过程中发生错误：" + error.getMessage())
+                                            .build(),
+                                    ServerSentEvent.<String>builder()
+                                            .data("[DONE]")
+                                            .build()
+                            );
+                        })
+                        .doOnSubscribe(subscription -> log.info("SSE连接建立"))
+                        .doOnComplete(() -> log.info("SSE流完成"));
 
             } catch (Exception e) {
                 log.error("AI聊天流处理异常", e);
-                return Flux.just(ServerSentEvent.<String>builder()
-                        .data("服务器内部错误：" + e.getMessage())
-                        .build());
+                return Flux.just(
+                        ServerSentEvent.<String>builder()
+                                .data("服务器内部错误：" + e.getMessage())
+                                .build(),
+                        ServerSentEvent.<String>builder()
+                                .data("[DONE]")
+                                .build()
+                );
             }
         });
     }

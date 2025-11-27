@@ -1,110 +1,74 @@
-import request from '@/request';
+// @ts-ignore
+/* eslint-disable */
+import request from '@/request'
 
 /**
- * AI助手控制器
- * 用于处理AI聊天相关的API调用
- */
-
-/**
- * 创建EventSource连接进行SSE通信
- * @param memoryId 会话记忆ID
+ * 创建聊天的EventSource连接（简化版本）
  * @param message 用户消息
- * @param onMessage 消息接收回调
- * @param onOpen 连接打开回调
- * @param onError 错误处理回调
- * @param onClose 连接关闭回调
+ * @param chatId 会话ID
  * @returns EventSource实例
  */
-export const createChatEventSource = (
-  memoryId: number,
-  message: string,
-  onMessage: (data: string) => void,
-  onOpen?: () => void,
-  onError?: (error: Event) => void,
-  onClose?: () => void
-): EventSource => {
-  const url = `http://localhost:8123/api/ai/chat?memoryId=${memoryId}&message=${encodeURIComponent(message)}`;
-  const eventSource = new EventSource(url, { withCredentials: true });
-  
-  eventSource.onmessage = (event) => {
-    onMessage(event.data);
-  };
-  
-  if (onOpen) {
-    eventSource.onopen = onOpen;
-  }
-  
-  if (onError) {
-    eventSource.onerror = onError;
-  }
-  
-  if (onClose) {
-    eventSource.onclose = onClose;
-  }
-  
-  return eventSource;
-};
+export function createChatEventSource(message: string, chatId: string): EventSource {
+  // 从localStorage获取登录用户信息
+  const loginUserJson = localStorage.getItem('loginUser')
+  let tokenValue = ''
 
-/**
- * 通过Axios获取AI聊天响应（非SSE方式）
- * 备用方法，当SSE不可用时可以使用
- * @param memoryId 会话记忆ID
- * @param message 用户消息
- * @returns Promise<string>
- */
-export const getChatResponse = async (memoryId: number, message: string): Promise<string> => {
-  const response = await request.get('/ai/chat', {
-    params: {
-      memoryId,
-      message
+  // 解析存储的用户信息并获取token
+  if (loginUserJson) {
+    try {
+      const loginUser = JSON.parse(loginUserJson)
+
+      // 尝试多种方式获取token
+      if (loginUser.token) {
+        tokenValue = loginUser.token
+      } else if (loginUser.tokenValue) {
+        tokenValue = loginUser.tokenValue
+      } else if (loginUser.satoken) {
+        tokenValue = loginUser.satoken
+      } else if (loginUser.Authorization) {
+        tokenValue = loginUser.Authorization
+      }
+    } catch (e) {
+      console.error('解析loginUser失败:', e)
     }
-  });
-  return response.data;
-};
-
-/**
- * 创建新的AI会话
- * @returns Promise<{ sessionId: string; memoryId: number }>
- */
-export const createNewSession = async (): Promise<{ sessionId: string; memoryId: number }> => {
-  try {
-    // 这里可以扩展为调用后端API创建会话
-    // 目前使用前端生成的方式
-    const sessionId = 'chat_' + Date.now() + '_' + Math.random().toString(36).substring(2, 9);
-    const memoryId = parseInt(sessionId.replace(/\D/g, '')) || 1;
-    
-    return {
-      sessionId,
-      memoryId
-    };
-  } catch (error) {
-    console.error('创建新会话失败:', error);
-    // 降级处理：使用纯前端生成
-    const sessionId = 'chat_' + Date.now() + '_' + Math.random().toString(36).substring(2, 9);
-    const memoryId = parseInt(sessionId.replace(/\D/g, '')) || 1;
-    return { sessionId, memoryId };
   }
-};
 
-/**
- * 获取会话历史（如果后端支持的话）
- * @param memoryId 会话记忆ID
- * @returns Promise<Array<{ role: 'user' | 'assistant'; content: string }>>
- */
-export const getSessionHistory = async (memoryId: number): Promise<Array<{ role: 'user' | 'assistant'; content: string }>> => {
-  try {
-    // 这里可以扩展为调用后端API获取历史记录
-    // 目前返回空数组
-    return [];
-  } catch (error) {
-    console.error('获取会话历史失败:', error);
-    return [];
+  // 构建SSE连接URL
+  let url = `${process.env.NODE_ENV === 'development' ? 'http://localhost:8123' : 'http://pic.codingseed.site'}/api/ai/chat?message=${encodeURIComponent(message)}&chatId=${chatId}`
+
+  // 添加token参数
+  if (tokenValue) {
+    url += `&token=${encodeURIComponent(tokenValue)}`
   }
-};
 
-export default {
-  createChatEventSource,
-  getChatResponse,
-  createNewSession,
-  getSessionHistory
-};
+  console.log('构建的SSE URL:', url)
+
+  // 创建并返回EventSource实例
+  const eventSource = new EventSource(url, { withCredentials: true })
+
+  // 设置基本的事件处理
+  eventSource.onopen = () => {
+    console.log('SSE连接已建立')
+  }
+
+  eventSource.onerror = (error) => {
+    console.error('SSE连接错误:', error)
+  }
+
+  return eventSource
+}
+
+/** createChat POST /api/ai/chat */
+export async function createChatUsingPost(
+  body: API.CreateChatRequest,
+  options?: { [key: string]: any },
+) {
+  return request<API.BaseResponseString_>('/api/ai/chat', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    data: body,
+    ...(options || {}),
+  })
+}

@@ -25,7 +25,7 @@ public class McpConfig {
         try {
             //1,MCP 传输.首先，你需要一个 MCP 传输实例。就是使用别人的 MCP 服务器，创建一个 MCP 传输实例(HTTP链接之类)。
             McpTransport transport = new HttpMcpTransport.Builder()
-                    .timeout(Duration.ofSeconds(60)) // 设置为60秒超时时间
+                    .timeout(Duration.ofSeconds(300)) // 增加超时时间到5分钟
                     .sseUrl("https://open.bigmodel.cn/api/mcp/web_search/sse?Authorization="+key)// 设置 SSE URL智谱模型，功能为让AI实现全网搜索内容
                     .logRequests(true) // 打印请求
                     .logResponses(true) // 打印响应

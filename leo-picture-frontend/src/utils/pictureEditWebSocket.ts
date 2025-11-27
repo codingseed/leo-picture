@@ -16,7 +16,7 @@ export default class PictureEditWebSocket {
     const DEV_BASE_URL = 'ws://localhost:8123'
     // 线上地址
     const PROD_BASE_URL = 'ws://pic.codingseed.site'
-    const url = `${DEV_BASE_URL}/api/ws/picture/edit?pictureId=${this.pictureId}`
+    const url = `${PROD_BASE_URL}/api/ws/picture/edit?pictureId=${this.pictureId}`
     this.socket = new WebSocket(url)
 
     // 设置携带 cookie
